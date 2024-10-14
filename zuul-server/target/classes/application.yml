@@ -17,7 +17,9 @@ zuul:
     userservice:
       path: /user/**
       serviceId: userservice
-
+#  host:
+#    connect-timeout-millis: 5000  # 连接超时设置为5秒
+#    socket-timeout-millis: 60000  # 读取超时设置为60秒
 
 spring:
   zipkin:

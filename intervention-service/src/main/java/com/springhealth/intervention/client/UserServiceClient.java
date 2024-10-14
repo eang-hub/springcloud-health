@@ -12,22 +12,23 @@ import org.springframework.web.client.RestTemplate;
 @Component
 public class UserServiceClient {
 
+    private static final Logger logger = LoggerFactory.getLogger(UserServiceClient.class);
+    
     @Autowired
     RestTemplate restTemplate;
 
     public User getUserByUserName(String userName){
-
-        //String apiUrl="http://zuulservice:5555/springhealth/user/users/{userName}";
-        String apiUrl="http://gatewayserver:5555/springhealth/user/users/{userName}";
-
-        ResponseEntity<User> restExchange =
+    	
+    	logger.debug("Get user: {}", userName);
+    	
+    	ResponseEntity<User> restExchange =
                 restTemplate.exchange(
-                        apiUrl,
+                        "http://zuulservice:5555/springhealth/user/users/{userName}",
                         HttpMethod.GET,
                         null, User.class, userName);
 
         User user = restExchange.getBody();
-
+        
         return user;
     }
 }

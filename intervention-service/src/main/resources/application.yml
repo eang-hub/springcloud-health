@@ -1,10 +1,34 @@
-spring:
-  application:
-    name: intervention-service
 server:
-  port: 8084
+   port: 8084
+          
+spring:
+  cloud:
+    config:
+     enabled: true
+     uri: http://localhost:8888
+
+hystrix:
+  command:
+    default:
+      execution:
+        isolation:
+          thread:
+            timeoutInMilliseconds:1000
+feign:
+  hystrix:
+    enabled: true
 
 eureka:
+  instance:
+    preferIpAddress: true
   client:
+    registerWithEureka: true
+    fetchRegistry: true
     serviceUrl:
       defaultZone: http://localhost:8761/eureka/
+
+logging:
+    level:
+      com.netflix: WARN
+      org.springframework.web: WARN
+      com.tianyalan: INFO

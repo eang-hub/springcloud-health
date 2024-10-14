@@ -11,11 +11,13 @@
         <module name="gateway-server" />
         <module name="user-service" />
         <module name="eureka-server" />
+        <module name="device-service" />
       </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="device-service" options="-parameters" />
       <module name="eureka-server" options="-parameters" />
       <module name="gateway-server" options="-parameters" />
       <module name="intervention-service" options="-parameters" />
