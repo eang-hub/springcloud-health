@@ -17,9 +17,12 @@ public class UserServiceClient {
 
     public User getUserByUserName(String userName){
 
+        //String apiUrl="http://zuulservice:5555/springhealth/user/users/{userName}";
+        String apiUrl="http://gatewayserver:5555/springhealth/user/users/{userName}";
+
         ResponseEntity<User> restExchange =
                 restTemplate.exchange(
-                        "http://userservice/users/{userName}",
+                        apiUrl,
                         HttpMethod.GET,
                         null, User.class, userName);
 
