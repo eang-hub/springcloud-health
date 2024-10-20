@@ -2,6 +2,7 @@ package com.springhealth.user.controller;
 
 import javax.servlet.http.HttpServletRequest;
 
+import com.springhealth.user.services.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,15 +24,14 @@ public class UserController {
 	@Autowired
 	private HttpServletRequest request;
 
+	@Autowired
+	private UserService userService;
 	@RequestMapping(value = "/{userName}", method = RequestMethod.GET)
 	public User getUserByUserName(@PathVariable("userName") String userName) {
 
 		logger.info("Get user by userName from port : {} of userservice instance", request.getServerPort());
 
-		User user = new User();
-		user.setId(001L);
-		user.setUserCode("mockUser");
-		user.setUserName(userName);
+		User user = userService.getUserByUserName(userName);
 		return user;
 	}
 }

@@ -8,6 +8,7 @@
         <outputRelativeToContentRoot value="true" />
         <module name="intervention-service" />
         <module name="zuul-server" />
+        <module name="config-server" />
         <module name="gateway-server" />
         <module name="user-service" />
         <module name="eureka-server" />
@@ -17,6 +18,7 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="config-server" options="-parameters" />
       <module name="device-service" options="-parameters" />
       <module name="eureka-server" options="-parameters" />
       <module name="gateway-server" options="-parameters" />

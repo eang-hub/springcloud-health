@@ -11,16 +11,16 @@ import com.springhealth.intervention.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.web.bind.annotation.*;
 
 import com.springhealth.intervention.domain.Intervention;
 import com.springhealth.intervention.service.InterventionService;
 
 @RestController
 @RequestMapping(value="interventions")
+//@ConfigurationProperties(prefix = "springhealth.device.datacollect")
 public class InterventionController {
 
     private static final Logger logger = LoggerFactory.getLogger(InterventionController.class);
@@ -52,6 +52,16 @@ public class InterventionController {
 		User user = userService.getUserByUserName(userName);
 
 		return user;
+	}
+
+
+	@Value("${springhealth.device.datacollect.frequency}")
+	private int frequency;
+	@RequestMapping(value = "configServerValue")
+	@ResponseBody
+	public String getConfigServerValue() {
+
+		return "从远程服务器获取到"+frequency;
 	}
 	
 }
