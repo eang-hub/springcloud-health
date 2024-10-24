@@ -1076,236 +1076,184 @@ body .markdown-body
 .highlight .vi{color:teal}
 .highlight .il{color:#009999}
 .highlight .gc{color:#999;background-color:#EAF2F5}
-</style><title>19  配置更新：如何理解配置信息自动更新的工作原理？</title></head><body><article class="markdown-body"><p data-nodeid="16857">在理解了 Spring Cloud Config 客户端与服务器端的交互流程之后，我们还剩下一个核心问题：一旦服务器端的配置信息发生变化，客户端如何进行及时更新？</p>
+</style><title>21  消息架构：如何把握 Spring Cloud Stream 的基本架构？</title></head><body><article class="markdown-body"><p data-nodeid="142691">上一课时中，我们介绍了事件驱动架构的基本原理，以及 Spring 中对消息传递机制的抽象和对应的开发框架。要想在 SpringHealth 案例系统中添加消息发送和接收的效果有很多种实现方法，我们完全可以直接使用诸如 RabbitMQ、Kafka 等消息中间件来实现消息传递，这种解决方案的主要问题在于需要开发人员考虑不同框架的使用方式以及框架之间存在的功能差异性。而 Spring Cloud Stream 则不同，它在内部整合了多款主流的消息中间件，为开发人员提供了一个平台型解决方案，从而屏蔽各个消息中间件在技术实现上的差异。在今天的内容中，我将首先介绍 Spring Cloud Stream 的基本架构，并给出它与目前主流的各种消息中间件之间的整合机制。</p>
 
-<p data-nodeid="16475">我们知道 Zookeeper 实现分布式配置中心的方法就是在客户端与 Zookeeper 之间建立长连接，然后合理利用 Zookeeper 的临时节点和监听器机制。而 Spring Cloud Config 客户端与服务器端采用的是基于 HTTP 协议的 RESTful API，本质上是一种短连接技术，也就无法通过类似监听器的方案实现配置信息的自动获取和更新。但是 Spring Cloud Config 也没有采用像 Eureka 中纯粹轮询的方式获取增量数据，而是提供了一套完全不同的解决方案。今天我们就来深入分析这套解决方案，Spring Cloud Config 在这点上的设计和实现方法同样值得我们学习并加以应用。</p>
+<h3 data-nodeid="142270">Spring Cloud Stream 基本架构</h3>
 
-<h3 data-nodeid="16476">Spring Cloud Config 客户端更新策略</h3>
+<p data-nodeid="143241">Spring Cloud Stream 对整个消息发布和消费过程做了高度抽象，并提供了一系列核心组件。我们先介绍通过 Spring Cloud Stream 构建消息传递机制的基本工作流程。区别于直接使用 RabbitMQ、Kafka 等消息中间件，Spring Cloud Stream 在消息生产者和消费者之间添加了一种桥梁机制，所有的消息都将通过 Spring Cloud Stream 进行发送和接收，如下图所示：</p>
 
-<p data-nodeid="16477">通过上一课时内容的介绍，我们知道在 Spring Cloud Config 客户端启动时，会发送 HTTP 请求到服务器端获取配置信息。而在 Git 等配置仓库中更改了配置信息之后，客户端不会主动再次请求最新配置，而是使用缓存到本地的原有配置信息。那么问题就来了，如何能够实时获取更改后的配置呢？</p>
+<p data-nodeid="143242" class=""><img src="https://s0.lgstatic.com/i/image/M00/73/90/Ciqc1F_GFU2Ae0qTAAHKrvTf9sk254.png" alt="图片1.png" data-nodeid="143246"></p>
 
-<p data-nodeid="16478">针对这个问题，我们有如下三种处理方法：</p>
+<div data-nodeid="143525" class=""><p style="text-align:center">Spring Cloud Stream 工作流程图</p></div>
 
-<ul data-nodeid="16479">
-<li data-nodeid="16480">
-<p data-nodeid="16481"><strong data-nodeid="16544">重启客户端。</strong></p>
+<p data-nodeid="142274">在上图中，我们不难看出 Spring Cloud Stream 具备四个核心组件，分别是 Binder、Channel、Source 和 Sink，其中 Binder 和 Channel 成对出现，而 Source 和 Sink 分别面向消息的发布者和消费者。</p>
+
+<ul data-nodeid="145482">
+<li data-nodeid="145483">
+<p data-nodeid="145484" class="">Source 和 Sink</p>
 </li>
 </ul>
 
-<p data-nodeid="16482">因为客户端在启动时会重新获取服务器端配置，所以重启客户端能实现配置信息的及时更新，但显然这不是一种合理的方法。</p>
+<p data-nodeid="142278">在 Spring Cloud Stream 中，Source 组件是真正生成消息的组件，相当于是一个输出（Output）组件。而 Sink 则是真正消费消息的组件，相当于是一个输入（Input）组件。根据我们对事件驱动架构的了解，对于同一个 Source 组件而言，不同的微服务可能会实现不同的 Sink 组件，分别根据自身需求进行业务上的处理。</p>
 
-<ul data-nodeid="16483">
-<li data-nodeid="16484">
-<p data-nodeid="16485"><strong data-nodeid="16549">使用 Spring Boot Actuator。</strong></p>
+<p data-nodeid="142279">在 Spring Cloud Stream 中，Source 组件使用一个普通的 POJO 对象来充当需要发布的消息，通过将该对象进行序列化（默认的序列化方式是 JSON）然后发布到 Channel 中。另一方面，Sink 组件监听 Channel 并等待消息的到来，一旦有可用消息，Sink 将该消息反序列化为一个 POJO 对象并用于处理业务逻辑。</p>
+
+<ul data-nodeid="142280">
+<li data-nodeid="142281">
+<p data-nodeid="142282">Channel</p>
 </li>
 </ul>
 
-<p data-nodeid="16486">Spring Boot 提供了一个专门的组件用来监测和管理系统运行时状态，这个组件就是 Spring Boot Actuator。Actuator 是一种集成化组件，可以获取应用系统的运行时数据和配置信息，并进行统计分析。</p>
+<p data-nodeid="142283">Channel 的概念比较容易理解，就是常见的通道，是对队列的一种抽象。根据上一课时所讨论的结果，我们知道在消息传递系统中，队列的作用就是实现存储转发的媒介，消息生产者所生成的消息都将保存在队列中并由消息消费者进行消费。通道的名称对应的往往就是队列的名称。</p>
 
-<p data-nodeid="16487">当在代码类路径中引入 spring-boot-starter-actuator 依赖并启动 Spring Boot 应用程序时，我们会在启动日志里发现自动添加了 autoconfig、dump、beans、actuator、health、refresh 等众多 HTTP 端点。通过调用 /actuator/refresh 端点就可以刷新客户端的配置信息，从而实现不重启 Spring Boot 应用的配置热更新。从实现原理上，这个操作实际上就是使用了一个 ContextRefresher 工具类完成了刷新操作，如下所示：</p>
-
-<pre class="lang-java" data-nodeid="16488"><code data-language="java"><span class="hljs-meta">@Endpoint(id = "refresh")</span>
-<span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">RefreshEndpoint</span> </span>{
-&nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">private</span> ContextRefresher contextRefresher;
-&nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-title">RefreshEndpoint</span><span class="hljs-params">(ContextRefresher contextRefresher)</span> </span>{
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">this</span>.contextRefresher = contextRefresher;
-&nbsp;&nbsp;&nbsp; }
-&nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-meta">@WriteOperation</span>
-&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">public</span> Collection&lt;String&gt; <span class="hljs-title">refresh</span><span class="hljs-params">()</span> </span>{
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Set&lt;String&gt; keys = contextRefresher.refresh();
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">return</span> keys;
-&nbsp;&nbsp;&nbsp; }
-}
-</code></pre>
-
-<p data-nodeid="16489">这是一种简单有效的处理方式，但也不是最好的处理方式。因为针对每个微服务一般都会存在多个运行时实例，这样就需要把客户端的 /actuator/refresh 端点逐个进行调用，这点显然也不是很合理。而且，这种方案属于客户端自身行为，与配置服务端没有关系。</p>
-
-<ul data-nodeid="16490">
-<li data-nodeid="16491">
-<p data-nodeid="16492"><strong data-nodeid="16556">集成 Spring Cloud Bus。</strong></p>
+<ul data-nodeid="142284">
+<li data-nodeid="142285">
+<p data-nodeid="142286">Binder</p>
 </li>
 </ul>
 
-<p data-nodeid="16493">Spring Cloud Config 提供的是第三种方法，即集成 Spring Cloud Bus 组件。Spring Cloud Bus 是 Spring Cloud 中用于实现消息总线的专用组件，集成了 RabbitMQ、Kafka 等主流消息中间件。Spring Cloud Bus 不是本课程的重点，而关于消息通信相关的内容我们会放在下一个主题中进行详细阐述，这里只需要知道 Spring Cloud Config 集成 Spring Cloud Bus 的目的就是想借助于它的消息通信能力。</p>
+<p data-nodeid="142287">Spring Cloud Stream 中最重要的概念就是 Binder。所谓 Binder，顾名思义就是一种黏合剂，将业务服务与消息传递系统黏合在一起。通过 Binder，我们可以很方便地连接消息中间件，可以动态的改变消息的目标地址、发送方式而不需要了解其背后的各种消息中间件在实现上的差异。关于 Binder 是如何与不同的消息中间件进行整合的实现原理我们在后续课程中会有源码级的专题进行讨论。</p>
 
-<p data-nodeid="16494">当我们在 Spring Cloud Config 服务器端工程的类路径中添加 Spring Cloud Bus 的引用并启动应用程序之后，Spring Boot Actuator 就为我们提供了 /actuator/bus-refresh 端点，通过访问该端点就可以达到对客户端所有服务实例的配置进行自动更新的效果。在这种方案中，服务端会主动通知所有客户端进行配置信息的更新，这样我们就不需要关注各个客户端，而只对服务端进行操作即可。</p>
+<h3 data-nodeid="142288">Spring Cloud Stream 集成 Spring 消息处理机制</h3>
 
-<p data-nodeid="17605">是不是听起来有点神奇？整个过程我们至少要搞清楚以下三大问题：</p>
+<p data-nodeid="142289">结合上一课时中了解到的关于 Spring Messaging 和 Spring Integration 的相关概念，我们就不难理解 Spring Cloud Stream 中关于 Source 和 Sink 的定义。Source 和 Sink 都是接口，其中 Source 接口的定义如下</p>
 
-<p data-nodeid="17606" class=""><img src="https://s0.lgstatic.com/i/image/M00/71/02/CgqCHl-8tdaARDnSAAILdvIy2rY358.png" alt="图片1.png" data-nodeid="17611"></p>
-
-<div data-nodeid="17607"><p style="text-align:center">配置信息自动更新的三大问题</p></div>
-
-<p data-nodeid="16498">针对这三个问题，接下去我们将结合源码逐一展开讨论。</p>
-
-<h3 data-nodeid="16500">问题一：如何自动调用服务器端所暴露的 /actuator/bus-refresh 端点？</h3>
-
-<p data-nodeid="16501">在现代软件开发过程中，开放式平台是一种常见的软件服务形态。我们可以把 Spring Cloud Config Server 所提供的 HTTP 端点视为一种开放式的接口，以供 Git 等第三方工具进行访问和集成。</p>
-
-<p data-nodeid="18874">正如前面提到的，可以把服务器端 /actuator/bus-refresh 端点对外进行暴露。第三方工具可以通过这个暴露的端点进行集成。例如，在 Git 中设计了一种 Webhook 的机制，并提供了用户界面供我们配置所需要集成的端点以及对应的操作，操作方法如下图所示：</p>
-
-<p data-nodeid="18875" class=""><img src="https://s0.lgstatic.com/i/image/M00/71/02/CgqCHl-8tgeAQinZAAIZRVRUJlg664.png" alt="图片2.png" data-nodeid="18880"></p>
-
-<div data-nodeid="18876"><p style="text-align:center">GitHub 的 Webhook 配置界面（来自 GitHub 官网）</p></div>
-
-<p data-nodeid="19383">我们可以在上图的 Payload URL 中设置 /actuator/bus-refresh 端点地址。所谓的 Webhook，实际上就是一种回调。通过 Webhook，当我们提交代码时，Git 就会自动调用所配置的 HTTP 端点。也就是说，可以根据配置项信息的更新情况自动实现对 /actuator/bus-refresh 端点的访问。基于 GitHub 的配置仓库实现方案，我们可以得到如下所示的系统结构图：</p>
-
-<p data-nodeid="19645"><img src="https://s0.lgstatic.com/i/image/M00/70/F7/Ciqc1F-8thCAZH8zAAJ1ROnnAWA097.png" alt="图片3.png" data-nodeid="19649"></p>
-
-<div data-nodeid="19646" class=""><p style="text-align:center">GitHub Webhook 机制执行效果图</p></div>
-
-<p data-nodeid="16508">现在，配置信息一旦有更新，Spring Cloud Config Server 就能从 Github 中获取最新的配置信息了。接下来我们关注第二个问题，即客户端如何得知服务器端的配置信息已经更新？</p>
-
-<h3 data-nodeid="16509">问题二：客户端如何得知服务器端的配置信息已经更新？</h3>
-
-<p data-nodeid="16510">我们首先需要明确调用 /actuator/bus-refresh 端点之后，系统内部会发生什么事情。这里我们需要快速浏览 Spring Cloud Bus 中的代码工程，发现在 org.springframework.cloud.bus.endpoint 包下存在一个 RefreshBusEndpoint 端点类，如下所示：</p>
-
-<pre class="lang-java" data-nodeid="16511"><code data-language="java"><span class="hljs-meta">@Endpoint(id = "bus-refresh")</span> 
-<span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">RefreshBusEndpoint</span> <span class="hljs-keyword">extends</span> <span class="hljs-title">AbstractBusEndpoint</span> </span>{
+<pre class="lang-java" data-nodeid="142290"><code data-language="java"><span class="hljs-keyword">import</span> org.springframework.cloud.stream.annotation.Output;
+<span class="hljs-keyword">import</span> org.springframework.messaging.MessageChannel;
+    &nbsp;
+<span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">Source</span> </span>{
 &nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-title">RefreshBusEndpoint</span><span class="hljs-params">(ApplicationEventPublisher context, String id)</span> </span>{
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">super</span>(context, id);
-&nbsp;&nbsp;&nbsp; }
+&nbsp;&nbsp;&nbsp; String OUTPUT = <span class="hljs-string">"output"</span>;
 &nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-meta">@WriteOperation</span>
-&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">busRefreshWithDestination</span><span class="hljs-params">(<span class="hljs-meta">@Selector</span> String destination)</span> </span>{ 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; publish(<span class="hljs-keyword">new</span> RefreshRemoteApplicationEvent(<span class="hljs-keyword">this</span>, getInstanceId(), destination));
-&nbsp;&nbsp;&nbsp; }
-&nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-meta">@WriteOperation</span>
-&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">busRefresh</span><span class="hljs-params">()</span> </span>{
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; publish(<span class="hljs-keyword">new</span> RefreshRemoteApplicationEvent(<span class="hljs-keyword">this</span>, getInstanceId(), <span class="hljs-keyword">null</span>));
-&nbsp;&nbsp;&nbsp; } 
+&nbsp;&nbsp;&nbsp; <span class="hljs-meta">@Output(Source.OUTPUT)</span>
+&nbsp;&nbsp;&nbsp; <span class="hljs-function">MessageChannel <span class="hljs-title">output</span><span class="hljs-params">()</span></span>;
 }
 </code></pre>
 
-<p data-nodeid="16512">显然，RefreshBusEndpoint 类对应于我们前面访问的 /bus-refresh 端点。可以看到，Spring Cloud Bus 在这里做的事情仅仅只是发布了一个新的 RefreshRemoteApplicationEvent 事件。</p>
+<p data-nodeid="142291">注意到这里通过 MessageChannel 来发送消息，而 MessageChannel 类来自 Spring Messaging 组件。我们在 MessageChannel 上发现了一个 @Output 注解，该注解定义了一个输出通道。</p>
 
-<p data-nodeid="16513">既然发送了事件，我们就需要寻找该事件的监听者。我们在 Spring Cloud Bus 的 org.springframework.cloud.bus.event 包下找到了 RefreshRemoteApplicationEvent 事件的监听者 RefreshListener，如下所示：</p>
+<p data-nodeid="142292">类似的，Sink 接口定义如下：</p>
 
-<pre class="lang-java" data-nodeid="16514"><code data-language="java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">RefreshListener</span>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">implements</span> <span class="hljs-title">ApplicationListener</span>&lt;<span class="hljs-title">RefreshRemoteApplicationEvent</span>&gt; </span>{
+<pre class="lang-java" data-nodeid="142293"><code data-language="java"><span class="hljs-keyword">import</span> org.springframework.cloud.stream.annotation.Input;
+<span class="hljs-keyword">import</span> org.springframework.messaging.SubscribableChannel;
+    &nbsp;
+<span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">Sink</span></span>{
 &nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> Log log = LogFactory.getLog(RefreshListener.class);
+&nbsp;&nbsp;&nbsp; String INPUT = <span class="hljs-string">"input"</span>;
 &nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">private</span> ContextRefresher contextRefresher;
-&nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-title">RefreshListener</span><span class="hljs-params">(ContextRefresher contextRefresher)</span> </span>{
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">this</span>.contextRefresher = contextRefresher;
-&nbsp;&nbsp;&nbsp; }
-&nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-meta">@Override</span>
-&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title">onApplicationEvent</span><span class="hljs-params">(RefreshRemoteApplicationEvent event)</span> </span>{
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Set&lt;String&gt; keys = contextRefresher.refresh();
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; log.info(<span class="hljs-string">"Received remote refresh request. Keys refreshed "</span> + keys);
-&nbsp;&nbsp;&nbsp; }
+&nbsp;&nbsp;&nbsp; <span class="hljs-meta">@Input(Sink.INPUT)</span>
+&nbsp;&nbsp;&nbsp; <span class="hljs-function">SubscribableChannel <span class="hljs-title">input</span><span class="hljs-params">()</span></span>;
 }
 </code></pre>
 
-<p data-nodeid="16515">从类的定义中，我们可以看到该监听器就是用来处理 RefreshRemoteApplicationEvent 事件，其中在 onApplicationEvent 函数中同样也是调用了前面介绍的 ContextRefresher 中的 refresh()方法进行配置属性的刷新。</p>
+<p data-nodeid="142294">同样，这里通过 Spring Messaging 中的 SubscribableChannel 来实现消息接收，而 @Input 注解定义了一个输入通道。</p>
 
-<p data-nodeid="20396">请注意，RefreshRemoteApplicationEvent 是一个远程事件，将通过消息中间件进行发送，并被 Spring Cloud Config 客户端所监听，处理流程如下图所示：</p>
+<p data-nodeid="142295">注意到 @Input 和 @Output 注解使用通道名称作为参数，如果没有名称，会使用带注解的方法名字作为参数，也就是默认情况下分别使用“input”和“output”作为通道名称。从这个角度讲，一个 Spring Cloud Stream 应用程序中的 Input 和 Output 通道数量和名称都是可以任意设置的，我们只需要在这些通道的定义上添加 @Input 和 @Output 注解即可。例如在如下所示的代码中，我们定义了 SpringHealthChannel 接口并声明了一个 Input 通道和两个 Output 通道，说明使用该通道的服务会从外部的一个通道中获取消息并向外部的两个通道发送消息：</p>
 
-<p data-nodeid="20397" class="te-preview-highlight"><img src="https://s0.lgstatic.com/i/image/M00/70/F7/Ciqc1F-8th6AZ2x1AAHYWGinWKg842.png" alt="图片4.png" data-nodeid="20402"></p>
-
-<div data-nodeid="20398"><p style="text-align:center">基于 Spring Cloud Bus 的事件传播机制</p></div>
-
-<p data-nodeid="16519">最后需要明确的第三个问题是，客户端如何获取服务器端所更新的配置信息，这就需要梳理 Spring Cloud Config Server 与注册中心 Eureka 之间的关系。</p>
-
-<h3 data-nodeid="16520">问题三：客户端如何实时获取服务器端所更新的配置信息？</h3>
-
-<p data-nodeid="16521">我们在分析配置中心的基本模型时提到，配置中心作为整个微服务架构运行所需的基础服务，需要确保其可用性。Spring Cloud Config 实现高可用的方式很简单，因为配置服务本身也是一个独立的微服务，与其他微服务一样，也可以注册到 Eureka 服务器上，让其他服务提供者或消费者通过注册中心进行服务发现和获取。</p>
-
-<p data-nodeid="16522">显然，在这种方式下，基于 Eureka 的服务治理机制同时提供了服务器端的负载均衡和客户端的配置功能，从而也就间接实现了高可用性。从另一个角度，我们也可以理解为可以通过 Eureka 获取所有 Spring Cloud Config 服务的实例，从而在分布式环境下为获取配置信息提供了一种简便的手段。</p>
-
-<p data-nodeid="16523">Spring Cloud Config 提供一个工具类 ConfigServerInstanceProvider 来完成与 Eureka 之间的交互，如下所示：</p>
-
-<pre class="lang-java" data-nodeid="16524"><code data-language="java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">class</span> <span class="hljs-title">ConfigServerInstanceProvider</span> </span>{
-&nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">private</span> <span class="hljs-keyword">static</span> Log logger = LogFactory.getLog(ConfigServerInstanceProvider.class);
-&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">private</span> <span class="hljs-keyword">final</span> DiscoveryClient client;
-&nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">public</span> <span class="hljs-title">ConfigServerInstanceProvider</span><span class="hljs-params">(DiscoveryClient client)</span> </span>{
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">this</span>.client = client;
-&nbsp;&nbsp;&nbsp; }
-&nbsp;
-&nbsp;&nbsp;&nbsp; <span class="hljs-meta">@Retryable(interceptor = "configServerRetryInterceptor")</span>
-&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">public</span> List&lt;ServiceInstance&gt; <span class="hljs-title">getConfigServerInstances</span><span class="hljs-params">(String serviceId)</span> </span>{
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; logger.debug(<span class="hljs-string">"Locating configserver ("</span> + serviceId + <span class="hljs-string">") via discovery"</span>);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; List&lt;ServiceInstance&gt; instances = <span class="hljs-keyword">this</span>.client.getInstances(serviceId);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">if</span> (instances.isEmpty()) {
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">throw</span> <span class="hljs-keyword">new</span> IllegalStateException(
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-string">"No instances found of configserver ("</span> + serviceId + <span class="hljs-string">")"</span>);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; logger.debug(<span class="hljs-string">"Located configserver ("</span> + serviceId
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + <span class="hljs-string">") via discovery. No of instances found: "</span> + instances.size());
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">return</span> instances;
-&nbsp;&nbsp;&nbsp; }
+<pre class="lang-java" data-nodeid="142296"><code data-language="java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">SpringHealthChannel</span> </span>{
+    &nbsp;
+    &nbsp;&nbsp;&nbsp; <span class="hljs-meta">@Input</span>
+    &nbsp;&nbsp;&nbsp; <span class="hljs-function">SubscribableChannel <span class="hljs-title">input1</span><span class="hljs-params">()</span></span>;
+    &nbsp;
+    &nbsp;&nbsp;&nbsp; <span class="hljs-meta">@Output</span>
+    &nbsp;&nbsp;&nbsp; <span class="hljs-function">MessageChannel <span class="hljs-title">output1</span><span class="hljs-params">()</span></span>;
+    &nbsp;
+    &nbsp;&nbsp;&nbsp; <span class="hljs-meta">@Output</span>
+    &nbsp;&nbsp;&nbsp; <span class="hljs-function">MessageChannel <span class="hljs-title">output2</span><span class="hljs-params">()</span></span>;
 }
 </code></pre>
 
-<p data-nodeid="16525">在这里，我们看到了熟悉的 DiscoveryClient，DiscoveryClient 通过同样熟悉的 getInstances() 方法从 Eureka 中获取 Spring Cloud Config 服务器实例，如下所示：</p>
+<p data-nodeid="142297">可以看到上述接口定义中同时使用到了 Spring Messaging 中的 SubscribableChannel 和 MessageChannel。Spring Cloud Stream 对 Spring Messaging 和 Spring Integration 提供了原生支持。在常规情况下，我们不需要使用这些框架中提供的API就能完成常见的开发需求。但如果确实有需要，我们也可以使用更为底层 API 直接操控消息发布和接收过程。</p>
 
-<pre class="lang-java" data-nodeid="16526"><code data-language="java">List&lt;ServiceInstance&gt; instances = <span class="hljs-keyword">this</span>.client.getInstances(serviceId);
-</code></pre>
+<h3 data-nodeid="142298">Spring Cloud Stream 集成消息中间件</h3>
 
-<p data-nodeid="16527">ConfigServerInstanceProvider 的调用者是 DiscoveryClientConfigServiceBootstrapConfiguration。如果系统中生成了 ContextRefreshedEvent 事件就会触发 startup() 方法，而该方法则直接调用了如下所示的 refresh() 方法（部分代码做了裁剪）：</p>
+<p data-nodeid="142299">对于 Spring Cloud Stream 而言，最核心的无疑是 Binder 组件。Binder 组件是服务与消息中间件之间的一层抽象，但我们知道各种消息中间件在消息传递机制的设计和实现上存在一定的差异性，那么 Spring Cloud Stream 如何屏蔽这些差异性从而打造自身的消息模型呢？在接下来的内容中，我们将梳理 Spring Cloud Stream 中的消息传递模型，并给出 Binder 与消息中间件如何进行整合的过程。</p>
 
-<pre class="lang-java" data-nodeid="16528"><code data-language="java"><span class="hljs-function"><span class="hljs-keyword">private</span> <span class="hljs-keyword">void</span> <span class="hljs-title">refresh</span><span class="hljs-params">()</span> </span>{
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">try</span> {
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; String serviceId = <span class="hljs-keyword">this</span>.config.getDiscovery().getServiceId();
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; List&lt;String&gt; listOfUrls = <span class="hljs-keyword">new</span> ArrayList&lt;&gt;();
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; List&lt;ServiceInstance&gt; serviceInstances = <span class="hljs-keyword">this</span>.instanceProvider
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; .getConfigServerInstances(serviceId);
-&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">for</span> (<span class="hljs-keyword">int</span> i = <span class="hljs-number">0</span>; i &lt; serviceInstances.size(); i++) {
-&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ServiceInstance server = serviceInstances.get(i);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; String url = getHomePage(server);
-&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">if</span> (server.getMetadata().containsKey(<span class="hljs-string">"password"</span>)) {
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; String user = server.getMetadata().get(<span class="hljs-string">"user"</span>);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; user = user == <span class="hljs-keyword">null</span> ? <span class="hljs-string">"user"</span> : user;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">this</span>.config.setUsername(user);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; String password = server.getMetadata().get(<span class="hljs-string">"password"</span>);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">this</span>.config.setPassword(password);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
-&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">if</span> (server.getMetadata().containsKey(<span class="hljs-string">"configPath"</span>)) {
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; String path = server.getMetadata().get(<span class="hljs-string">"configPath"</span>);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">if</span> (url.endsWith(<span class="hljs-string">"/"</span>) &amp;&amp; path.startsWith(<span class="hljs-string">"/"</span>)) {
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; url = url.substring(<span class="hljs-number">0</span>, url.length() - <span class="hljs-number">1</span>);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; url = url + path;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
-&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; listOfUrls.add(url);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
-&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; String[] uri = <span class="hljs-keyword">new</span> String[listOfUrls.size()];
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; uri = listOfUrls.toArray(uri);
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">this</span>.config.setUri(uri);
-&nbsp;
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; }
-}
-</code></pre>
+<h4 data-nodeid="142300">Spring Cloud Stream 中的消息传递模型</h4>
 
-<p data-nodeid="16529">在上述 refresh() 方法中可以看到，系统首先会获取配置文件中配置项 spring.cloud.config.discovery.serviceId 所指定的服务实例 Id，然后根据 serviceId 从 ConfigServerInstanceProvider 中获取注册服务的实例对象集合 serviceInstances，最后循环遍历 serviceInstances 来更新存储在内存中的配置属性值。</p>
+<p data-nodeid="142301">Spring Cloud Stream 将消息发布和消费抽象成如下三个核心概念，并结合目前主流的一些消息中间件对这些概念提供了统一的实现方式。</p>
 
-<p data-nodeid="16530">我们知道这些属性值都保存在 ConfigClientProperties 对象中，而在《配置服务：如何基于 Spring Cloud Config 构建配置中心服务器？》课时所介绍的 ConfigServicePropertySourceLocator 类中，通过分析 getRemoteEnvironment 方法，发现正是通过 ConfigClientProperties 对象中的这些属性值来对 Spring Cloud Config Server 进行远程调用。这样我们就可以把整个流程串联起来了。</p>
+<ul data-nodeid="142302">
+<li data-nodeid="142303">
+<p data-nodeid="142304">发布-订阅模型</p>
+</li>
+</ul>
 
-<h3 data-nodeid="16531">小结与预告</h3>
+<p data-nodeid="146286">我们知道点对点模型和发布-订阅模型是传统消息传递系统的两大基本模型，其中点对点模型实际上可以被视为发布-订阅模型在订阅者数量为 1 时的一种特例。因此，在 Spring Cloud Stream 中，统一通过发布-订阅模型完成消息的发布和消费，如下所示：</p>
 
-<p data-nodeid="18110">本课程讲解的是基于 Spring Cloud Config 实现配置信息自动更新的工作原理。我们抛出了三个与这个主题相关的核心问题，然后基于源码对这些问问都做了一一解答。事实上，Spring Cloud Config 作为 Spring 自研的配置中心框架，其内部大量使用了 Spring 现有的功能特性，这点与我们学习 Netflix 旗下的 Eureka、Zuul 等框架不同。我们需要首先对 Spring 容器相关的知识体系有足够的了解，才能更好地理解 Spring Cloud Config 的设计和实现方式。</p>
+<p data-nodeid="146287" class=""><img src="https://s0.lgstatic.com/i/image/M00/73/90/Ciqc1F_GFXqAPudEAAHBljDWmY4700.png" alt="图片2.png" data-nodeid="146292"></p>
 
-<p data-nodeid="18111" class=""><img src="https://s0.lgstatic.com/i/image/M00/70/F6/Ciqc1F-8tfWAMyg1AAVRdOi-aI0550.png" alt="Spring Cloud 19金句.png" data-nodeid="18115"></p>
+<div data-nodeid="146288"><p style="text-align:center">消息发布-订阅模型示意图</p></div>
 
-<p data-nodeid="16533">这里给你留一道思考题：在 Spring Cloud Config 中，当位于配置服务器中的配置信息发生变更时，如何让各个客户端保持同步更新呢？</p>
+<ul data-nodeid="142308">
+<li data-nodeid="142309">
+<p data-nodeid="142310">消费者组</p>
+</li>
+</ul>
 
-<p data-nodeid="16534">我们在讨论配置中心时提到了可以基于事件发送和消费机制来实现配置信息的动态更新。而事件的发送和消费往往需要依赖于消息通信机制以及主流的一些消息中间件，从下课时开始，我们将进入“消息通信”这个主题，来学习 Spring Cloud 中提供的 Spring Cloud Stream 组件。</p>
+<p data-nodeid="146823">设计消费者组（Consumer Group）的目的是应对集群环境下的多服务实例问题。显然，如果采用发布-订阅模式就会导致一个服务的不同实例都消费到了同一条消息。为了解决这个问题，Spring Cloud Stream 中提供了消费者组的概念。一旦使用了消费组，一条消息就只能被同一个组中的某一个服务实例所消费。消费者的基本结构如下图所示（其中虚线表示不会发生的消费场景）：</p>
+
+<p data-nodeid="147099"><img src="https://s0.lgstatic.com/i/image/M00/73/90/Ciqc1F_GFYKAOmpjAAHSXAgoO8s789.png" alt="图片3.png" data-nodeid="147103"></p>
+
+<div data-nodeid="147100" class=""><p style="text-align:center">消费者组结构示意图</p></div>
+
+<ul data-nodeid="142314">
+<li data-nodeid="142315">
+<p data-nodeid="142316">消息分区</p>
+</li>
+</ul>
+
+<p data-nodeid="147892">假如我们希望相同的消息都被同一个微服务实例来处理，但又有多个服务实例组成了负载均衡结构，那么通过上述的消费组概念仍然不能满足要求。针对这一场景，Spring Cloud Stream 又引入了消息分区（Partition）的概念。引入分区概念的意义在于，同一分区中的消息能够确保始终是由同一个消费者实例进行消费。尽管消息分区的应用场景并没有那么广泛，但如果想要达到类似的效果，Spring Cloud Stream 也为我们提供了一种简单的实现方案，消息分区的基本结构如下图所示：</p>
+
+<p data-nodeid="147893" class=""><img src="https://s0.lgstatic.com/i/image/M00/73/9C/CgqCHl_GFY-Acs5MAAHDDsj-fd8866.png" alt="图片4.png" data-nodeid="147898"></p>
+
+<div data-nodeid="147894"><p style="text-align:center">消息分区结构示意图</p></div>
+
+<h4 data-nodeid="142320">Binder 与消息中间件</h4>
+
+<p data-nodeid="142321">Binder 组件本质上是一个中间层，负责与各种消息中间件的交互。目前，Spring Cloud Stream 中集成的消息中间件包括 RabbitMQ和Kafka。在具体介绍如何使用 Spring Cloud Stream 进行消息发布和消费之前，我们先来结合消息传递机制给出 Binder 对这两种不同消息中间件的整合方式。</p>
+
+<ul data-nodeid="142322">
+<li data-nodeid="142323">
+<p data-nodeid="142324">RabbitMQ</p>
+</li>
+</ul>
+
+<p data-nodeid="148421">RabbitMQ 是 AMQP（Advanced Message Queuing Protocol，高级消息队列协议）协议的典型实现框架。在 RabbitMQ 中，核心概念是交换器（Exchange）。我们可以通过控制交换器与队列之间的路由规则来实现对消息的存储转发、点对点、发布-订阅等消息传递模型。在一个 RabbitMQ 中可能会存在多个队列，交换器如果想要把消息发送到具体某一个队列，就需要通过两者之间的绑定规则来设置路由信息。路由信息的设置是开发人员操控 RabbitMQ 的主要手段，而路由过程的执行依赖于消息头中的路由键（Routing Key）属性。交换器会检查路由键并结合路由算法来决定将消息路由到哪个队列中去。下图就是交换器与队列之间的路由关系图：</p>
+
+<p data-nodeid="148693"><img src="https://s0.lgstatic.com/i/image/M00/73/9C/CgqCHl_GFZiAJmwzAAKqP6viw60190.png" alt="图片5.png" data-nodeid="148697"></p>
+
+<div data-nodeid="148694" class=""><p style="text-align:center">RabbitMQ 中交换器与队列的路由关系图</p></div>
+
+<p data-nodeid="142328">可以看到一条来自生产者的消息通过交换器中的路由算法可以发送给一个或多个队列，从而分别实现点对点和发布订阅功能。同时，我们基于上图也不难得出消费者组的实现方案。因为 RabbitMQ 里每个队列是被消费者竞争消费的，所以指定同一个组的消费者消费同一个队列就可以实现消费者组。</p>
+
+<ul data-nodeid="142329">
+<li data-nodeid="142330">
+<p data-nodeid="142331">Kafka</p>
+</li>
+</ul>
+
+<p data-nodeid="149752">从架构上讲，在 Kafka 中，生产者使用推模式将消息发布到服务器，而消费者使用拉模式从服务器订阅消息。在 Kafka 中还使用到了 Zookeeper，其作用在于实现服务器与消费者之间的负载均衡，所以启动 Kafka 之前必须确保 Zookeeper 正常运行。同时，Kafka 也实现了消费者组机制，如下图所示：</p>
+
+<p data-nodeid="149753" class="te-preview-highlight"><img src="https://s0.lgstatic.com/i/image/M00/73/9C/CgqCHl_GFaOANReSAAKuXoszyk4239.png" alt="图片6.png" data-nodeid="149758"></p>
+
+<div data-nodeid="149754"><p style="text-align:center">Kafka 消费者分组</p></div>
+
+<p data-nodeid="142334">可以看到多个消费者构成了一种组结构，消息只能传输给某个组中的某一个消费者。也就是说，Kafka 中消息的消费具有显式的分布式特性，天生就内置了 Spring Cloud Stream 中的消费组概念。</p>
+
+<p data-nodeid="142335">在 SpringHealth 案例中，我们将同时基于 RabbitMQ 和 Kafka 来展示 Spring Cloud Stream 的各项功能特性。</p>
+
+<h3 data-nodeid="142336">小结与预告</h3>
+
+<p data-nodeid="142337">Spring Cloud Stream 是 Spring Cloud 中针对消息处理的一款平台型框架，该框架的核心优势在于在内部集成了 RabbitMQ、Kafka 等主流消息中间件，而对外则提供了统一的 API 接入层。通过今天的课程，我们知道 Spring Cloud Stream 是通过 Binder 来实现了这一目标。同时，针对消息处理场景下的消费者分组、消息分区等需求，该框架也内置了抽象层并完成与不同消息中间件之间的整合。</p>
+
+<p data-nodeid="142338">这里给你留一道思考题：在 Spring Cloud Stream 中，消费者组和消费分区分别用于解决什么应用场景？</p>
+
+<p data-nodeid="142339">在明确了 Spring Cloud Stream 的基本架构之后，在接下来的两个课时中，我们将介绍如何使用它来实现消息发布者和消费者的详细步骤和方法。</p>
 
 <hr />
-<h3 id="_1">精选评论<a class="headerlink" href="#_1" title="Permanent link"></a></h3></article></body></html>
+<h3 id="_1">精选评论<a class="headerlink" href="#_1" title="Permanent link"></a></h3>
+<h5 id="zorrrrrro">Zorrrrrro：<a class="headerlink" href="#zorrrrrro" title="Permanent link"></a></h5>
+<blockquote>
+<p>消费者组用于分布式多实例同一条消息只需要一个实例处理消息的场景，同一消费组像分工合作一起消费消息，避免重复消费。消费分区用于同一分区只能被同一实例处理的场景，一个分区只会被一个消费者消费，所以分区还可以做分区内消息有序。但同一消费组无法做消息有序。同时，针对消费组实例数，调整分区数还能提高一定并发量（具体可能结合生产者消费者自己业务瓶颈考虑）。一个消费者可以消费多个分区，但一个分区只能被一个消费者消费。</p>
+</blockquote></article></body></html>

@@ -1,6 +1,16 @@
 spring:
-  application:
-    name: userservice
+  cloud:
+    stream:
+      bindings:
+        output:
+          destination:  userInfoChangedTopic
+          content-type: application/json
+      kafka:
+        binder:
+          zk-nodes: localhost
+          brokers: localhost
+
+
 server:
   port: 8081
 

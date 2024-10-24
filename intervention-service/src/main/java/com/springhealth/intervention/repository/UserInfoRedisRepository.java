@@ -8,9 +8,7 @@ public interface UserInfoRedisRepository {
     
     void updateUser(UserMapper user);
     
-    void deleteUser(Long userId);
-    
-    UserMapper findUserById(Long userId);
+    void deleteUser(String userName);
     
     UserMapper findUserByUserName(String userName);
 }

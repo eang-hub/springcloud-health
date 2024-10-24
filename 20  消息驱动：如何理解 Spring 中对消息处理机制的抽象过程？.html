@@ -1076,136 +1076,114 @@ body .markdown-body
 .highlight .vi{color:teal}
 .highlight .il{color:#009999}
 .highlight .gc{color:#999;background-color:#EAF2F5}
-</style><title>16  配置方案：如何设计分布式环境下的配置中心解决方案？</title></head><body><article class="markdown-body"><p data-nodeid="39312" class="">从今天开始，我们进入到配置中心的讨论。在微服务架构中，面对分散在各个服务、各个环境中的各种配置信息，配置中心是必备组件之一。Spring Cloud 中也专门提供了一个 Spring Cloud Config 框架来实现分布式配置中心。在引入这个框架之前，今天我们将先给出分布式配置的基本模型，并基于 Spring Boot 分析配置体系。</p>
+</style><title>20  消息驱动：如何理解 Spring 中对消息处理机制的抽象过程？</title></head><body><article class="markdown-body"><p data-nodeid="763">从今天开始，我们将进入到 Spring Cloud 中与消息处理机制相关内容的介绍。Spring Cloud 专门提供了一个 Spring Cloud Stream 框架来实现事件驱动架构，并完成与主流消息中间件的集成。同时，Spring Cloud Stream 背后也整合了 Spring 家族中的消息处理和消息总线方面的几个框架，可以说是 Spring Cloud 中整合程度最高的一个开发框架。</p>
 
-<h3 data-nodeid="39313">配置中心基本模型</h3>
+<h3 data-nodeid="764">SpringHealth 中的事件驱动架构</h3>
 
-<p data-nodeid="39314">在《追本溯源：究竟什么样的架构才是微服务架构？》中我们已经提到，微服务架构对于配置中心的需求一方面来自服务的数量。在传统的单块系统中，对于配置信息的管理，往往倾向于把所有配置项跟源代码一起放在代码仓库中，这样比较简单，在确保配置信息安全性的同时，往往也可以运行得很好。但在微服务架构中，如果这样做，势必会导致很多配置信息重复出现在不同的服务中，造成浪费且增加维护成本。</p>
+<p data-nodeid="1322">在微服务设计和开发过程中经常会存在这样的需求：系统中的某个服务会因为用户操作或内部行为发布一个事件，该服务知道这个事件在将来的某一个时间点会被其他服务所消费，但是并不知道这个服务具体是谁、也不关心什么时候被消费。同样，消费该事件的服务也不一定需要知道该事件是由哪个服务所发布。如下图所示：</p>
 
-<p data-nodeid="40179">另一方面，配置中心的需求来自配置信息的分散性。可以想象，在一个微服务系统中，势必存在多个服务，而这些服务一般都会存在开发环境、测试环境、预发布环境、生产环境等多套环境。针对不同的环境，我们都会采用一套不同的配置体系。那么如何保证多个环境中这些配置信息都能在各个服务实例中进行实时的同步更新呢？这就需要引入集中式配置管理的设计思想，如下图所示：</p>
+<p data-nodeid="1490"><img src="https://s0.lgstatic.com/i/image/M00/71/BC/Ciqc1F-_cT2AaPnWAAFG-ke1Gqk780.png" alt="Lark20201126-171046.png" data-nodeid="1494"></p>
 
-<p data-nodeid="40180"><img src="https://s0.lgstatic.com/i/image/M00/6D/2B/Ciqc1F-s34GAFVJmAAKnrEuvJgc476.png" alt="Lark20201112-150617.png" data-nodeid="40184"></p>
+<div data-nodeid="1491" class=""><p style="text-align:center">事件发送和消费示意图</p></div>
 
-<div data-nodeid="39825"><p style="text-align:center">集中式配置中心示例图</p></div>
+<p data-nodeid="768">在上图中，事件生产者和消费者之间的虚线代表的是一种相互松散、没有直接调用的关联关系。满足以上特性的系统代表着一种松耦合的架构，通常被称为事件驱动架构，而这里的事件也可以被理解是服务与服务之间发送的一种消息。事件驱动架构本质上是一种架构设计风格，实现方法和工具有很多。在 Spring Cloud 家族中这个工具就是 Spring Cloud Stream。在接下来的内容中，我们将结合 SpringHealth 案例来分析事件驱动架构的实现需求以及在微服务架构中的应用。</p>
 
-<p data-nodeid="39318">在上图中，可以看到开发、测试和生产等不同环境的配置信息统一保存在一个配置中心中。而每个环境都构成了一个分布式集群，我们也需要保证每个集群中所有服务内部保存的同一份配置信息能够得到同步的更新。</p>
+<p data-nodeid="769">在微服务系统中引入事件驱动架构的主要目的在于提升系统的扩展性。所谓扩展性，举例来说，就是在向现有系统中添加新业务时，不需要改变原有的各个组件，而只需把新业务封闭在一个新的组件中就能完成整体业务的升级，我们认为这样的系统就具有较好的可扩展性。</p>
 
-<p data-nodeid="39319">考虑到服务的数量和配置信息的<strong data-nodeid="39375">分散性</strong>，一般都需要引入配置中心的设计思想和相关工具。每一个微服务系统都应该有一个配置中心，而所有微服务中所使用到的配置信息都应该维护在配置中心中。对于配置中心的组成结构，我们可以做一层抽象，如下图所示：</p>
+<p data-nodeid="770">让我们回到 SpringHealth 系统，在我们的案例中存在健康干预相关的业务场景，常见的健康干预涉及用户、设备和健康干预自身信息维护等功能，而 SpringHealth 分别提取了 user-service、device-service 和 intervention-service 这三个微服务。显然，这三个服务之间需要进行服务之间的调用和协调从而完成业务闭环。如果在不久的将来，SpringHealth 中需要引入其他服务才能形成完整的业务流程，那么这个业务闭环背后的交互模式就需要进行相应的调整。</p>
 
-<p data-nodeid="41052"><img src="https://s0.lgstatic.com/i/image/M00/6D/2B/Ciqc1F-s342AYo8VAAI3kaXIffk714.png" alt="Lark20201112-150624.png" data-nodeid="41055"></p>
+<p data-nodeid="771">一般而言，类似 SpringHealth 这样的系统中的用户信息变动并不会太频繁，所以很多时候我们会想到通过缓存来存放用户信息，并在健康干预处理过程中直接从缓存中获取所需的用户信息。在这样的设计和实现方式下，试想一旦某个用户信息发生变化，我们应该如何正确和高效的应对这一场景？</p>
 
-<div data-nodeid="40698"><p style="text-align:center">配置中心组成结构</p></div>
+<p data-nodeid="1959">考虑到系统扩展性，显然在 intervention-service 中直接通过访问 user-service 实时获取用户信息的服务交互模式并不是一个好的选择，因为用户信息更新的时机我们无法事先预知，而事件驱动架构为我们提供了一种更好的实现方案。当用户信息变更时，user-service 可以发送一个事件，该事件表明了某个用户信息已经发生了变化，并将传递到所有对该事件感兴趣的微服务，这些微服务会根据自身的业务逻辑来消费这一事件。通过这种方式，某个特定服务就可以获取用户信息变更事件从而正确且高效的更新缓存信息。基于这种设计思想，该场景下交互示意图如下所示：</p>
 
-<p data-nodeid="39322">可以看到，对于一个典型的配置中心而言，存在两个组成部分，即<strong data-nodeid="39388">配置服务器</strong>和<strong data-nodeid="39389">配置仓库</strong>。</p>
+<p data-nodeid="1960" class=""><img src="https://s0.lgstatic.com/i/image/M00/71/C8/CgqCHl-_cUyANr4AAAIM7JYrwbM905.png" alt="Lark20201126-171050.png" data-nodeid="1965"></p>
 
-<p data-nodeid="39323">配置服务器的核心作用就是对接来自各个微服务的配置信息请求，这些微服务会通过配置服务器提供的统一接口获取存储在配置中心中的所需配置信息。因此，配置服务器也是作为独立的微服务而存在。对于配置服务器而言，一方面需要确保对配置中心中所存储的各种配置信息进行<strong data-nodeid="39404">统一维护；<strong data-nodeid="39403">另一方面，也需要提供一种</strong>通知机制</strong>，确保配置信息变化之后能够告知各个微服务，以便各个微服务及时更新本地服务中的配置数据。后者实际上跟《服务治理：如何正确理解服务治理解决方案？》中介绍的服务治理中<strong data-nodeid="39405">基于轮询或监听机制的实现方式</strong>类似，只不过注册中心处理的是服务实例信息，而配置中心处理的是各种配置信息。</p>
+<div data-nodeid="1961"><p style="text-align:center">用户信息更新场景中的事件驱动架构</p></div>
 
-<p data-nodeid="39324">配置服务器可以独立完成配置信息的<strong data-nodeid="39415">存储和维护</strong>工作，但也可以把这部分工作剥离出来放到单独的一个媒介中，这个媒介就是配置仓库。请注意，配置仓库并不是必备的，我们完全可以依托配置服务器自身的文件系统来实现配置信息的存储。但构建独立配置仓库的主要优势在于能够把<strong data-nodeid="39416">配置存储过程进行抽象</strong>，从而支持 SVN、Gitlab 等具备版本控制功能的多种第三方工具，以及自建一个具有持久化或内存存储功能的存储媒介。</p>
+<p data-nodeid="775">在上图中，我们看到了有 consumer-service1 和 consumer-service2 这两个消费者服务，事件处理架构的优势就在于当系统中需要添加新的用户信息变更事件处理逻辑来完成整个流程时，我们只需要对该事件添加一个新的 consumer-service2 即可，而不需要对原有的 consumer-service1 中的处理流程做任何修改。这在应对系统扩展性上有很大的优势。</p>
 
-<p data-nodeid="39325">构建一个完整的配置中心并不简单，需要具备很多功能特性。首当其冲的就是隔离性，这里的隔离性指的是不同环境下配置信息之间应该是不会相互混淆的，例如测试环境的配置显然不应该作用于生产环境。然后，我们也需要有一种高效的机制来确保配置中心中的配置信息一旦有任何变化，能够及时通知到各个微服务，这也是<strong data-nodeid="39422">配置一致性</strong>的一种表现。</p>
+<p data-nodeid="776">针对上图，在技术上实现上，我们可以使用主流的消息中间件来实现消息的发布与消费，常见的包括 ActiveMQ、RabbitMQ、Kafka 等。这些消息中间件的核心功能就是能够将所收到的消息存储起来并进行转发。有了存储转发机制之后，就可以做到消息发布者和消费者相互独立。关于各个消息中间件的介绍不是本课程的重点，而在 Spring Cloud Stream 中集成了 RabbitMQ 和 Kafka，我们会在下一课时中进行详细展开。在此之前，我们有必要对 Spring 家族中的消息处理机制做一个展开，因为 Spring Cloud Stream 正是构建在 Spring 消息处理机制之上。</p>
 
-<h3 data-nodeid="39326">配置中心实现工具</h3>
+<h3 data-nodeid="777">Spring 家族中的消息处理机制</h3>
 
-<p data-nodeid="39327">基于配置中心的实现需求，业界存在一批典型的分布式配置中心实现工具。这里列举部分知名的开源工具并给出了相应的特性描述。</p>
+<p data-nodeid="2424">在了解了事件驱动架构以及消息中间件的基本概念之后，我们来看一下 Spring 中针对这些概念提供的技术解决方案。在 Spring 家族中，与消息处理机制相关的框架有三个。事实上，本课程要介绍的 Spring Cloud Stream 是基于 Spring Integration 实现了消息发布和消费机制并提供了一层封装，很多关于消息发布和消费的概念和实现方法本质上都是依赖于 Spring Integration。而在 Spring Integration 的背后，则依赖于 Spring Messaging 组件来实现消息处理机制的基础设施。这三个框架之间的依赖关系如下图所示：</p>
 
-<p data-nodeid="39328">首先是两款比较典型的<strong data-nodeid="39438">配置中心实现工具</strong>，一款是<strong data-nodeid="39439">Etcd</strong>，它是一个轻量级分布式 Key-Value 对数据库，实现了数据更新、目录监听、分布式锁等功能特性。而<strong data-nodeid="39440">Consul</strong>是一款由 Google 提供的开源框架，内置了服务注册与发现框架以及分布一致性协议实现机制，既可以用作配置中心，也可以用于构建注册中心。</p>
+<p data-nodeid="2425" class="te-preview-highlight"><img src="https://s0.lgstatic.com/i/image/M00/71/C8/CgqCHl-_cVaAeckTAAGWUPl4MVk661.png" alt="Lark20201126-171053.png" data-nodeid="2430"></p>
 
-<p data-nodeid="39329">在国产软件中，<strong data-nodeid="39446">Disconf</strong>是由百度开源的一个分布式配置管理工具，与 Spring 框架有很好的集成，在使用上也提供了友好的 Web 管理界面。从实现机制上讲，Disconf 把配置信息都存储在MySQL中，并基于 Zookeeper 提供的监听机制实现数据的实时推送。而 Diamond 则由阿里巴巴提供，同样把配置数据存储在 MySQL 上，但在获取配置数据时不是使用的推送模式，而是每隔一段时间进行全量数据的拉取，实现过程比较简单。相较 Disconf 同时提供的基于配置文件和 Key-Value 对的数据管理模式，Diamond 只支持 Key-Value 对结构的数据。</p>
+<div data-nodeid="2426"><p style="text-align:center">Spring 家族中三大消息处理相关框架关系图</p></div>
 
-<p data-nodeid="41732">讲到配置中心，就不得不提到<strong data-nodeid="41740">Zookeeper</strong>。Zookeeper 是一种分布式协调工具，它对每个节点都可以设置监听器 Watcher。节点监听机制可以用来实现实时感知，即当某一个节点的信息有任何变动时，所有监听该节点的其他节点都可以实时获取通知，从而做出响应。对于配置中心而言，所有服务就是 Zookeeper 的客户端，这些服务通过对包含配置信息的 Zookeeper 节点进行监听就能获取配置信息更新内容。基于 Zookeeper 实现配置中心的示意图如下所示，可以看到这个过程本质上就是对 Zookeeper 节点和监听器的合理利用。</p>
+<p data-nodeid="781">接下来的内容，我们先来对位于底层的 Spring Messaging 和 Spring Integration 框架做一些展开，方便你在使用 Spring Cloud Stream 时对其背后的实现原理有更好的理解。</p>
 
-<p data-nodeid="41733" class="te-preview-highlight"><img src="https://s0.lgstatic.com/i/image/M00/6D/36/CgqCHl-s356AKZoWAAKFrCEd0Fc666.png" alt="Lark20201112-150626.png" data-nodeid="41743"></p>
+<h4 data-nodeid="782">Spring Messaging</h4>
 
-<div data-nodeid="41734"><p style="text-align:center">Zookeeper 实现配置中心示例图</p></div>
+<p data-nodeid="783">Spring Messaging 是 Spring 框架中的一个底层模块，用于提供统一的消息编程模型。例如，消息这个数据单元在 Spring Messaging 中统一定义为如下所示的 Message 接口，包括一个消息头 Header 和一个消息体 Payload：</p>
 
-<p data-nodeid="39333">最后要介绍的配置中心实现工具是 Spring 家族中的<strong data-nodeid="39461">Spring Cloud Config</strong>。从设计思路上讲，Spring Cloud Config 与 Zookeeper 完全不同。Zookeeper 是把配置信息保存在其内部的节点上，这些节点本质上就是操作系统的文件系统。而 Spring Cloud Config 同样可以将配置信息保存在文件系统中，但更多的场景是推荐使用 Git 等配置仓库来存储配置信息。在关键的配置变化通知机制上，Zookeeper 依赖其变更事件的发送和 Watcher 机制来通知客户端；而 Spring Cloud Config 则会发送事件到 Spring Cloud Bus 消息总线，然后由消息总线通知相关的服务。</p>
-
-<p data-nodeid="39334">显然，不同的工具具有不同的设计原理和实现方式，在本课程的后续内容中，我们会基于 Spring Cloud Config 讨论配置中心应用方式和实现原理。而在此之前，我们有必要对 Spring Boot 中的配置体系做一些介绍。</p>
-
-<h3 data-nodeid="39335">Spring Boot 中的配置体系</h3>
-
-<p data-nodeid="39336">我们知道 Spring Boot 是 Spring Cloud 构建单个微服务的基础，所以但凡涉及服务配置，最终也是通过 Spring Boot 中的配置体系进行承载。而 Spring Boot 的配置体系有其自身的特点，我们来看一下。</p>
-
-<p data-nodeid="39337">在 Spring Boot 中，对配置文件的命名是有一定规范的，引入了 Label 和 Profile 概念指定配置信息的版本以及运行环境。其中 Label 表示配置版本控制信息，而 Profile 则用来指定该配置文件所对应的环境，例如分别使用 dev、prod、test 来对应开发、生产和测试环境。当然，我们也可以根据需要自定义各种 Profile。</p>
-
-<p data-nodeid="39338">Spring Boot 中配置文件的格式有两种，分别是 .properties 格式和 .yml 格式。结合 Label 和 Profile 概念和不同的文件格式，如下所示的配置文件在命名上都是合理的：</p>
-
-<pre class="lang-xml" data-nodeid="39339"><code data-language="xml">/{application}.yml
-/{application}-{profile}.yml
-/{label}/{application}-{profile}.yml
-/{application}-{profile}.properties
-/{label}/{application}-{profile}.properties
+<pre class="lang-java" data-nodeid="784"><code data-language="java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">Message</span>&lt;<span class="hljs-title">T</span>&gt; </span>{
+&nbsp;&nbsp;&nbsp; <span class="hljs-function">T <span class="hljs-title">getPayload</span><span class="hljs-params">()</span></span>;
+&nbsp;&nbsp;&nbsp; <span class="hljs-function">MessageHeaders <span class="hljs-title">getHeaders</span><span class="hljs-params">()</span></span>;
+}
 </code></pre>
 
-<p data-nodeid="39340">.yml 文件中所使用的语法和其他高级语言类似，特别适合用来表达或编辑数据结构和各种配置文件。以常见的数据源配置为例，如果采用 .yml 文件则可能是如下所示的配置效果。</p>
+<p data-nodeid="785">而消息通道 MessageChannel 的定义也比较简单，我们可以调用 send() 方法将消息发送至该消息通道中，MessageChannel 接口定义如下所示：</p>
 
-<pre class="lang-xml" data-nodeid="39341"><code data-language="xml">datasource:
-    driverClassName: com.mysql.jdbc.Driver
-    url: jdbc:mysql://localhost/springhealth
-&nbsp;&nbsp;&nbsp; username: root
-&nbsp;&nbsp;&nbsp; password: root
+<pre class="lang-java" data-nodeid="786"><code data-language="java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">MessageChannel</span> </span>{
+&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">long</span> INDEFINITE_TIMEOUT = -<span class="hljs-number">1</span>;
+&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">default</span> <span class="hljs-keyword">boolean</span> <span class="hljs-title">send</span><span class="hljs-params">(Message&lt;?&gt; message)</span> </span>{
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-keyword">return</span> send(message, INDEFINITE_TIMEOUT);
+&nbsp;&nbsp;&nbsp; }
+&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">boolean</span> <span class="hljs-title">send</span><span class="hljs-params">(Message&lt;?&gt; message, <span class="hljs-keyword">long</span> timeout)</span></span>;
+}
 </code></pre>
 
-<p data-nodeid="39342">而如果采用 .propertie 配置文件，那么上述配置信息将表示为如下的形式：</p>
+<p data-nodeid="787">消息通道的概念比较抽象，可以简单把它理解为是对队列的一种抽象。我们知道在消息传递系统中，队列的作用就是实现存储转发的媒介，消息发布者所生成的消息都将保存在队列中并由消息消费者进行消费。通道的名称对应的就是队列的名称，但是作为一种抽象和封装，各个消息传递系统所特有的队列概念并不会直接暴露在业务代码中，而是通过通道来对队列进行配置。</p>
 
-<pre class="lang-xml" data-nodeid="39343"><code data-language="xml">spring.datasource.driverClassName=com.mysql.jdbc.Driver
-spring.datasource.url=jdbc:mysql://localhost/springhealth
-spring.datasource.username=root
-spring.datasource.password=root
+<p data-nodeid="788">Spring Messaging 把通道抽象成如下所示的两种基本表现形式，即支持轮询的 PollableChannel 和实现发布-订阅模式的 SubscribableChannel，这两个通道都继承自具有消息发送功能的 MessageChannel：</p>
+
+<pre class="lang-java" data-nodeid="789"><code data-language="java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">PollableChannel</span> <span class="hljs-keyword">extends</span> <span class="hljs-title">MessageChannel</span> </span>{ 
+    &nbsp;&nbsp;&nbsp; Message&lt;?&gt; receive(); 
+    &nbsp;&nbsp;&nbsp; Message&lt;?&gt; receive(<span class="hljs-keyword">long</span> timeout);
+}
+    &nbsp;
+<span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">SubscribableChannel</span> <span class="hljs-keyword">extends</span> <span class="hljs-title">MessageChannel</span> </span>{ 
+    &nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">boolean</span> <span class="hljs-title">subscribe</span><span class="hljs-params">(MessageHandler handler)</span></span>; 
+    &nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">boolean</span> <span class="hljs-title">unsubscribe</span><span class="hljs-params">(MessageHandler handler)</span></span>;
+}
 </code></pre>
 
-<p data-nodeid="39344">显然，类似这样的数据源通常会根据环境的不同而有很多套配置。假设我们存在如下所示的配置文件集合，注意这里有一个全局的 application.properties 配置文件以及多个局部的 Profile 配置文件。</p>
+<p data-nodeid="790">我们注意到对于 PollableChannel 而言才有 receive 的概念，代表这是通过轮询操作主动获取消息的过程。而 SubscribableChannel 则是通过注册回调函数 MessageHandler 来实现事件响应。MessageHandler 接口定义如下：</p>
 
-<pre class="lang-xml" data-nodeid="39345"><code data-language="xml">application.properties
-application-uat.properties
-application-test.properties
-application-prod.properties
+<pre class="lang-java" data-nodeid="791"><code data-language="java"><span class="hljs-keyword">public</span> <span class="hljs-class"><span class="hljs-keyword">interface</span> <span class="hljs-title">MessageHandler</span> </span>{
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-function"><span class="hljs-keyword">void</span> <span class="hljs-title">handleMessage</span><span class="hljs-params">(Message&lt;?&gt; message)</span> <span class="hljs-keyword">throws</span> MessagingException</span>;
+}
 </code></pre>
 
-<p data-nodeid="39346">那么，如何指定当前使用具体哪一套配置信息呢？在 Spring Boot 中，我们可以在主 application.properties 中使用如下的配置方式来激活当前所使用的 Profile：</p>
+<p data-nodeid="792">Spring Messaging 在基础消息模型之上还提供了很多方便在业务系统中使用消息传递机制的辅助功能，例如各种消息体内容转换器 MessageConverter 以及消息通道拦截器  ChannelInterceptor 等，这里不做展开，你可以参考官方文档做进一步了解。</p>
 
-<pre class="lang-xml" data-nodeid="39347"><code data-language="xml">spring.profiles.active = test
-</code></pre>
+<h4 data-nodeid="793">Spring Integration</h4>
 
-<p data-nodeid="39348">上述配置项意味着系统当前会读取 application-test.properties 文件中的配置信息。同样，如果使用 .yml 文件，则可以使用如下所示的配置方法。</p>
+<p data-nodeid="794">Spring Integration 是对 Spring Messaging 的扩展，提供了对系统集成领域的经典著作《企业集成模式：设计构建及部署消息传递解决方案》中所描述的各种企业集成模式的支持，通常被认为是一种企业服务总线 ESB 框架。</p>
 
-<pre class="lang-xml" data-nodeid="39349"><code data-language="xml">spring:
-&nbsp; profiles:
-&nbsp;&nbsp;&nbsp; active: test
-</code></pre>
+<p data-nodeid="795">在 Spring Messaging 的基础上，Spring Integration 还实现了其他几种有用的通道，包括支持阻塞式队列的 RendezvousChannel，该通道与带缓存的 QueueChannel 都属于点对点通道，但只有在前一个消息被消费之后才能发送下一个消息。PriorityChannel 即优先级队列，而 DirectChannel 是 Spring Integration 的默认通道，该通道的消息发送和接收过程处于同一线程中。另外还有 ExecutorChannel，使用基于多线程的 TaskExecutor 来异步消费通道中的消息。</p>
 
-<p data-nodeid="39350">事实上，我们也可以同时激活几个 Profile，这完全取决于你对系统配置的需求和维度。</p>
+<p data-nodeid="796">Spring Integration 的设计目的是系统集成，因此内部提供了大量的集成化端点方便应用程序直接使用。当各个异构系统之间进行集成时，如何屏蔽各种技术体系所带来的差异性，Spring Integration 为我们提供了解决方案。通过通道之间的消息传递，在消息的入口和出口我们可以使用通道适配器和消息网关这两种典型的端点对消息进行同构化处理。Spring Integration 提供的常见集成端点包括 File、FTP、TCP/UDP、HTTP、JDBC、JMS、AMQP、JPA、Mail、MongoDB、Redis、RMI、Web Services 等。</p>
 
-<pre class="lang-xml" data-nodeid="39351"><code data-language="xml">spring.profiles.active: test, myprofile1, myprofile2
-</code></pre>
+<p data-nodeid="797">Spring Integration 的功能非常强大，本课程无意对所有这些功能做过多阐述。在下一课时介绍 Spring Cloud Stream 的基本架构时我们会对 Spring Integration 做更详细的介绍。</p>
 
-<p data-nodeid="39352">当然，如果你想把所有的 Profile 配置信息只保存在一个文件中而不是分散在多个配置文件中， Spring Boot 也是支持的，需要做的事情只是对这些信息按 Profile 进行分段组织，如下所示：</p>
+<h3 data-nodeid="798">小结与预告</h3>
 
-<pre class="lang-xml" data-nodeid="39353"><code data-language="xml">spring: 
-&nbsp;&nbsp;&nbsp; profiles: test
-&nbsp;&nbsp;&nbsp; #test环境相关配置信息
-&nbsp;
-spring: 
-&nbsp;&nbsp;&nbsp; profiles: prod
-&nbsp;&nbsp;&nbsp; #prod环境相关配置信息
-</code></pre>
+<p data-nodeid="799">本课时引入了消息传递机制来应对系统开发中所需要实现的事件驱动架构，而在 Spring Cloud 中也存在强大的 Spring Cloud Stream 框架完成对主流消息中间件的平台化集成。注意到该框架同时也是对 Spring Messaging 和 Spring Intergration 这两个 Spring 家族中消息处理框架的封装，这些都是我们理解并正确使用 Spring Cloud Stream 的前提。</p>
 
-<p data-nodeid="39354">尽管上述方法是有效的，但在本课程中，还是推荐你按多个配置文件的组织方法管理各个 Profile 配置信息，这样不容易混淆和出错。</p>
+<p data-nodeid="800">这里给你留一道思考题：在 Spring 家族中存在哪些框架可以用来实现消息处理，而 Spring Cloud Stream 与这些框架又是什么样的关系？</p>
 
-<p data-nodeid="39355">最后，如果我们不希望在全局配置文件中静态指定所需要激活的 Profile，而是想把这个过程延迟到运行这个服务时，那么可以直接在 java –jar 命令中添加“--spring.profiles.active”参数，如下所示</p>
-
-<pre class="lang-xml" data-nodeid="39356"><code data-language="xml">java -jar user-service.jar --spring.profiles.active=prod
-</code></pre>
-
-<p data-nodeid="39357">这种实现方案在通过脚本进行自动化打包和部署的场景下非常有用。</p>
-
-<h3 data-nodeid="39358">小结与预告</h3>
-
-<p data-nodeid="39359">配置中心是微服务架构中的一个基础组件，而业界关于如何实现配置中心也有一些基本的模型和工具。本课时针对配置中心实现需求梳理了涉及一款配置中心所必须要考虑的数据存储、变更通知等核心问题，并结合业界主流的开源框架做了对比和分析，并最终选择 Spring Cloud 家族中的 Spring Cloud Config 来作为本课程的配置中心实现方案。同时，因为 Spring Cloud Config 依赖于 Spring Boot 中的配置体系，我们也对这个换题做了一些展开。</p>
-
-<p data-nodeid="39360">这里给你留一道思考题：在配置中心中，如果想要实现配置信息的变更通知，一般有哪些设计和实现的思路？</p>
-
-<p data-nodeid="39361" class="">接下来，我们就将全面讨论 Spring Cloud Config 框架。我们会分两个课时分别从服务器端和客户端出发对该框架的应用方式和实现原理进行解析。下一课时，我们先来讨论服务器端组件。</p>
+<p data-nodeid="801">在引入 Spring Cloud Stream 框架之后，下一课时我们将关注于该框架的基本架构。在架构设计上，Spring Cloud Stream 中所包含的理念和实现技巧同样值得我们学习和应用。</p>
 
 <hr />
-<h3 id="_1">精选评论<a class="headerlink" href="#_1" title="Permanent link"></a></h3></article></body></html>
+<h3 id="_1">精选评论<a class="headerlink" href="#_1" title="Permanent link"></a></h3>
+<h5 id="_2">**雅：<a class="headerlink" href="#_2" title="Permanent link"></a></h5>
+<blockquote>
+<p>在 Spring 家族中，与消息处理机制相关的框架有三个。 Spring Cloud Stream 是基于 Spring Integration 实现了消息发布和消费机制并提供了一层封装，很多关于消息发布和消费的概念和实现方法本质上都是依赖于 Spring Integration。而在 Spring Integration 的背后，则依赖于 Spring Messaging 组件来实现消息处理机制的基础设施。</p>
+</blockquote>
+<p>###### &nbsp;&nbsp;&nbsp; 讲师回复：</p>
+<blockquote>
+<p>&nbsp;&nbsp;&nbsp; 对的</p>
+</blockquote></article></body></html>

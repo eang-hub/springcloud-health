@@ -1,14 +1,14 @@
 customProperty: customProperty
-#
-#redis.server: 127.0.0.1
-#redis.port: 6379
+
+redis.server: 127.0.0.1
+redis.port: 6379
 
 spring:
   jpa:
     database: MYSQL
   datasource:
     platform: mysql
-    url: jdbc:mysql://119.3.52.175:3306/springhealth_intervention
+    url: jdbc:mysql://localhost:3306/springhealth_user?serverTimezone=Asia/Shanghai
     username: root
     password: 123456
     driver-class-name: com.mysql.jdbc.Driver

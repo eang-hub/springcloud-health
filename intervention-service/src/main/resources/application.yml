@@ -1,11 +1,21 @@
 server:
    port: 8084
-          
 spring:
   cloud:
+    stream:
+      bindings:
+        userInfoChangedChannel:
+          destination: userInfoChangedTopic
+          content-type: application/json
+          group: interventionGroup
+      kafka:
+        binder:
+          zk-nodes: localhost
+          brokers: localhost
     config:
      enabled: true
      uri: http://localhost:8888
+
 
 hystrix:
   command:
