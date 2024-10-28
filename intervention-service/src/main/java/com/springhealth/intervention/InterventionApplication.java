@@ -1,7 +1,10 @@
 package com.springhealth.intervention;
 
 import java.net.UnknownHostException;
+import java.util.Collections;
+import java.util.List;
 
+import com.springhealth.intervention.filter.AuthorizationHeaderInterceptor;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.stream.annotation.EnableBinding;
 import org.springframework.cloud.stream.messaging.Sink;
@@ -10,8 +13,10 @@ import org.springframework.cloud.client.SpringCloudApplication;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.cloud.netflix.hystrix.EnableHystrix;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.security.oauth2.client.DefaultOAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2ClientContext;
 import org.springframework.security.oauth2.client.OAuth2RestTemplate;
@@ -27,12 +32,20 @@ import org.springframework.web.client.RestTemplate;
 public class InterventionApplication {
 
 
-
+	@Primary
 	@Bean
 	@LoadBalanced
-	public OAuth2RestTemplate oauth2RestTemplate(OAuth2ClientContext context,
-												 OAuth2ProtectedResourceDetails details) {
-		return new OAuth2RestTemplate(details, context);
+	public RestTemplate getCustomRestTemplate() {
+		RestTemplate template = new RestTemplate();
+		List<ClientHttpRequestInterceptor> interceptors = template.getInterceptors();
+		if (interceptors == null) {
+			template.setInterceptors(Collections.singletonList(new AuthorizationHeaderInterceptor()));
+		} else {
+			interceptors.add(new AuthorizationHeaderInterceptor());
+			template.setInterceptors(interceptors);
+		}
+
+		return template;
 	}
 	@Bean
 	@SuppressWarnings({ "rawtypes", "unchecked" })

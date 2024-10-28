@@ -16,7 +16,7 @@ import org.springframework.web.client.RestTemplate;
 public class DeviceServiceClient {
 	
     @Autowired
-    OAuth2RestTemplate restTemplate;
+    RestTemplate restTemplate;
 
     private static final Logger logger = LoggerFactory.getLogger(DeviceServiceClient.class);
 
