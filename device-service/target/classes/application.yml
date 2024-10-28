@@ -10,3 +10,9 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 #  instance:
 #    hostname: localhost
+
+
+security:
+  oauth2:
+    resource:
+      userInfoUri: http://localhost:8080/userinfo

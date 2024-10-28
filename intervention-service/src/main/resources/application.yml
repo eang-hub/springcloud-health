@@ -10,7 +10,6 @@ spring:
           group: interventionGroup
       kafka:
         binder:
-          zk-nodes: localhost
           brokers: localhost
     config:
      enabled: true
@@ -36,6 +35,18 @@ eureka:
     fetchRegistry: true
     serviceUrl:
       defaultZone: http://localhost:8761/eureka/
+
+
+security:
+  oauth2:
+    resource:
+      userInfoUri: http://localhost:8080/userinfo
+    client:
+      client-id: interventionClient
+      client-secret: interventionSecret
+      accessTokenUri: http://localhost:8080/oauth/token
+      grant-type: client_credentials
+
 
 logging:
     level:

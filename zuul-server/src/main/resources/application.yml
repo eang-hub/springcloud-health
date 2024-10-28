@@ -11,16 +11,15 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
 
 zuul:
-  prefix: /springhealth # 前缀应该放在zuul下，而不是routes下
-  ignored-services: userservice
+  prefix:  /springhealth
   routes:
-    userservice:
-      path: /user/**
-      serviceId: userservice
-#  host:
-#    connect-timeout-millis: 5000  # 连接超时设置为5秒
-#    socket-timeout-millis: 60000  # 读取超时设置为60秒
-
+    userservice: /user/**
+    deviceservice: /device/**
+    interventionservice: /intervention/**
+  sensitiveHeaders: Cookie,Set-Cookie
+  host:
+    connect-timeout-millis: 10000
+    socket-timeout-millis: 60000
 spring:
   zipkin:
     enabled: false

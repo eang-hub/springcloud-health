@@ -15,7 +15,8 @@ public class UserInfoChangedSink {
 
     private static final Logger logger = LoggerFactory.getLogger(UserInfoChangedSink.class);
 
-    @StreamListener(UserInfoChangedChannel.USER_INFO)
+    //@StreamListener(UserInfoChangedChannel.USER_INFO)
+    @StreamListener("input")
     public void handleChangedUserInfo(UserInfoChangedEventMapper userInfoChangedEventMapper) {
     	
         logger.debug("Received a message of type " + userInfoChangedEventMapper.getType()); 

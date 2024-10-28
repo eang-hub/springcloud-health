@@ -1,73 +1,245 @@
-
-    在发送和接收消息时，需要使用 @EnableBinding 注解
-        BindableProxyFactory 类: 初始化由 @EnableBinding 注解所提供接口的工厂类
-            同时实现了 MethodInterceptor 接口和 Bindable 接口。前者是AOP 中的方法拦截器，后者是标明能够绑定 Input 和 Output 的接口。
-                invoke: 拦截方法根据 @Input 和 @Output 注解获取消息通道对象并进行缓存
-                Bindable: 提供了对 Input 和 Output 的绑定和解绑操作
-                bindOutputs方法 :
-                    工具类 BindingService，该类提供了对 Input 和 Output 目标对象进行绑定的能力
-                    bindOutputs 方法遍历输出目标并使用 BindingService 将可绑定的目标注册为生产者
-                        bindProducer方法:根据配置将输出对象绑定到指定目标
-                            doBindProducer方法：通过 Binder 的 bindProducer 方法完成了目标对象的绑定
-
-
-
-    Binder 是一个接口，分别提供了绑定生产者和消费者的方法 bindProducer，bindConsumer
-        如何获取一个 Binder
-            工厂类 BinderFactory的getBinder 方法
-                BinderFactory 的实现类也只有一个，即 DefaultBinderFactory
-                    通过 getBinderInstance 获取真正的 Binder 实例
-                        Binder<T, ?, ?> binder = binderProducingContext.getBean(Binder.class);
-                        构建了一个上下文对象 ConfigurableApplicationContext，并通过该上下文对象获取实现了 Binder 接口的 Java bean
-        AbstractBinder，这是一个基于Binder抽象类    
-            重写bindProducer，bindConsumer通过 doBindConsumer 和 doBindProducer 抽象方法交由子类进行完成
-            AbstractMessageChannelBinder: AbstractBinder 的子类 
-                doBindProducer 方法： 
-                    创建并配置 MessageHandler，将消息生产者与输出通道绑定，
-                    使用 SendingHandler 作为代理处理消息发送，并最终将任务委托给实际的 producerMessageHandler。
-                    SendingHandler 所使用的 producerMessageHandler 需要由 AbstractMessageChannelBinder 子类负责进行创建。
-                doBindConsumer:
-                    MessageProducer consumerEndpoint = createConsumerEndpoint(destination, group, properties);
-                    consumerEndpoint.setOutputChannel(inputChannel);
-                AbstractMessageChannelBinder 具有三个抽象方法，即 createProducerMessageHandler、postProcessOutputChannel 和 afterUnbindProducer
-
-
-
-    RabbitMQ集成消息发送
-        RabbitMessageChannelBinder#createProducerMessageHandler 用于完成消息的发送
-                通过构建 RabbitTemplate（封装与 RabbitMQ 交互的模板类），并使用 AmqpOutboundEndpoint 来设置交换机名称
-                    AmqpOutboundEndpoint #send 方法进行消息的发送
-                       整合 AmqpOutboundEndpoint，使用 RabbitTemplate 发送消息，
-                       并通过 MessageConverter 将 Spring Messaging 的 Message 转换为 AmqpMessage，实现消息从 Spring 到 RabbitMQ 的发送。
+    设置客户端信息
+        通过继承 AuthorizationServerConfigurerAdapter 配置 Spring 授权服务器的客户端信息
+            configure(AuthorizationServerEndpointsConfigurer) 配置授权服务器的端点，
+            将 AuthenticationManager 和 UserDetailsService 注入来处理身份验证。
+            然后，在 configure(ClientDetailsServiceConfigurer) 设置客户端信息，
+            定义客户端ID、密钥（以 {noop} 不加密编码）、授权模式（包括密码模式、刷新令牌等）限定访问范围
     
-    RabbitMQ集成消息消费
-        RabbitMessageChannelBinder 中与消息消费相关的是 createConsumerEndpoint 方法
-            该方法最终返回的是一个 AmqpInboundChannelAdapter 对象: 是一种 InboundChannelAdapter，代表面向输入的通道适配器，提供了消息监听功能
-               Listener implements ChannelAwareMessageListener, RetryListener->#onMessage
-                  调用了 createAndSend 方法完成消息的创建和发送
-                    实现消息从 RabbitMQ 到 Spring 的转换
+        @EnableAuthorizationServer 注解会启用多个端点，其中 AuthorizationEndpoint 用于控制授权。
+        通过继承 AuthorizationServerConfigurerAdapter 并重写 configure() 方法，可以配置端点的行为。
+        因为使用密码模式，该模式需要身份认证，需在 AuthorizationServerEndpointsConfigurer 中指定 AuthenticationManager，用于校验用户名和密码。
+        此外，指定 UserDetailsService 自定义用户信息服务，以替换默认的实现，确保安全认证过程符合自定义需求。
+
+    设置用户认证信息
+        设置用户认证信息所依赖的配置类是 WebSecurityConfigurer 类，提供了 WebSecurityConfigurerAdapter 类来简化该配置类的使用方式
+        继承 WebSecurityConfigurerAdapter 类并且覆写其中的 configure() 的方法来完成配置工作。
+            只需要指定用户名（User）、密码（Password）和角色（Role）这三项数据
+        置了用户信息之后，AuthenticationManager 就会通过 authenticate 方法负责在用户登录时检查用户名和密码的有效性   
+            如果匹配，认证成功，返回认证对象。
+            如果不匹配，抛出 AuthenticationException 异常。
+
+    Bootstrap 类中添加 @EnableResourceServer 注解，相当于就是声明了该服务中的所有内容都是受保护的资源。
+    会对所有的 HTTP 请求进行验证以确定 Header 部分中是否包含 Token 信息，如果没有 Token 信息，则会直接限制访问
+    将 Token 传递给 OAuth2 授权服务器的目的就是获取该 Token 中包含的用户和授权信息  
+        继承 SpringHealthResourceServerConfiguration 类并覆写它的 configure 方法
+            用户层级的权限访问控制:使用HttpSecurity 对象配置anyRequest().authenticated() 方法指定了访问该服务的任何请求都需要进行验证。
+            用户+角色层级的权限访问控制:  HttpSecurity 中通过 antMatchers() 和 hasRole() 方法指定想要限制的资源和角色
+            用户+角色+操作层级的权限访问控制: 在 HttpSecurity 的 antMatchers() 中添加 HttpMethod.PUT 限定。
+        OAuth2RestTemplate 工具类：在 HTTP 请求中传播 Token
+            - 使用 `new OAuth2RestTemplate(details, oauth2ClientContext);` 实例化。
+              - 其中：
+                  - `details` 是 `OAuth2ProtectedResourceDetails` 的实例，包含 `clientId`、`clientSecret`、`scope` 等属性。
+                  - `oauth2ClientContext` 是 `OAuth2ClientContext` 的实例，用于管理请求会话。
+              - Token 会保存在 `OAuth2ClientContext` 中，保证每个用户请求的信息隔离，确保状态分离。
 
 
 
-public final Binding<MessageChannel> doBindProducer(final String destination, MessageChannel outputChannel,
-final P producerProperties) throws BinderException {
+auth-server 服务内容
+```
+server:
+   port: 8080
+   
+logging:
+    level:
+      com.netflix: WARN
+      org.springframework.web: WARN
+      com.tianyalan: INFO
 
-    // 1. 获取生产者目标（如队列或主题）
-    ProducerDestination producerDestination = this.provisioningProvider
-            .provisionProducerDestination(destination, producerProperties);
-    
-    // 2. 创建消息处理器
-    MessageHandler producerMessageHandler = createProducerMessageHandler(producerDestination, producerProperties, null);
-    
-    // 3. 将消息处理器绑定到 outputChannel
-    outputChannel.subscribe(new SendingHandler(producerMessageHandler));
+eureka:
+  instance:
+    preferIpAddress: true
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+        defaultZone: http://localhost:8761/eureka/
+```
 
-    // 4. 创建并返回 Binding 对象来管理生命周期
-    return new DefaultBinding<>(destination, null, outputChannel, 
-        producerMessageHandler instanceof Lifecycle ? (Lifecycle) producerMessageHandler : null);
+```java
+
+@Configuration
+public class SpringHealthAuthorizationServerConfigurer extends AuthorizationServerConfigurerAdapter {
+
+	@Autowired
+	private AuthenticationManager authenticationManager;
+
+	@Autowired
+	private UserDetailsService userDetailsService;
+
+	@Override
+	public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+		endpoints.authenticationManager(authenticationManager).userDetailsService(userDetailsService);
+	}
+
+	@Override
+	public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+
+		clients.inMemory().withClient("springhealth").secret("{noop}springhealth_secret")
+				.authorizedGrantTypes("refresh_token", "password", "client_credentials")
+				.scopes("webclient", "mobileclient");
+	}
+}
+
+
+@Configuration
+public class SpringHealthWebSecurityConfigurer extends WebSecurityConfigurerAdapter {
+    @Override
+    @Bean
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
+
+    @Override
+    @Bean
+    public UserDetailsService userDetailsServiceBean() throws Exception {
+        return super.userDetailsServiceBean();
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder builder) throws Exception {
+        builder.inMemoryAuthentication().withUser("springhealth_user").password("{noop}password1").roles("USER").and()
+                .withUser("springhealth_admin").password("{noop}password2").roles("USER", "ADMIN");
+    }
 }
 
 
 
+@SpringCloudApplication
+@RestController
+@EnableResourceServer
+@EnableAuthorizationServer
+public class AuthServerApplication {
+
+    @RequestMapping(value = "/userinfo" , produces = "application/json")
+    public Map<String, Object> user(OAuth2Authentication user) {
+        Map<String, Object> userInfo = new HashMap<>();
+        userInfo.put("user", user.getUserAuthentication().getPrincipal());
+        userInfo.put("authorities", AuthorityUtils.authorityListToSet(user.getUserAuthentication().getAuthorities()));
+        return userInfo;
+    }
+
+    public static void main(String[] args) {
+        SpringApplication.run(AuthServerApplication.class, args);
+    }
+}
+
+```
+
+intervention-service 服务内容
+```
+server:
+   port: 8084
+spring:
+  cloud:
+    stream:
+      bindings:
+        userInfoChangedChannel:
+          destination: userInfoChangedTopic
+          content-type: application/json
+          group: interventionGroup
+      kafka:
+        binder:
+          zk-nodes: localhost
+          brokers: localhost
+    config:
+     enabled: true
+     uri: http://localhost:8888
 
 
+hystrix:
+  command:
+    default:
+      execution:
+        isolation:
+          thread:
+            timeoutInMilliseconds:1000
+feign:
+  hystrix:
+    enabled: true
+
+eureka:
+  instance:
+    preferIpAddress: true
+  client:
+    registerWithEureka: true
+    fetchRegistry: true
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+
+security:
+  oauth2:
+    resource:
+      userInfoUri: http://localhost:8080/userinfo
+    client:
+      grant-type: client_credentials
+
+
+logging:
+#    level:
+      com.netflix: WARN
+      org.springframework.web: WARN
+      com.tianyalan: INFO
+
+```
+
+```java
+
+@SpringCloudApplication
+@EnableBinding(Sink.class)
+@EnableResourceServer
+@EnableOAuth2Client
+public class InterventionApplication {
+
+
+
+	@Bean
+	@LoadBalanced
+	public OAuth2RestTemplate oauth2RestTemplate(
+												 OAuth2ProtectedResourceDetails details) {
+		return new OAuth2RestTemplate(details);
+	}
+
+	@Bean
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public RedisTemplate redisTemplate(RedisConnectionFactory redisConnectionFactory)
+			throws UnknownHostException {
+		RedisTemplate<Object, Object> template = new RedisTemplate<Object, Object>();
+		template.setConnectionFactory(redisConnectionFactory);
+
+		return template;
+	}
+    public static void main(String[] args) {
+        SpringApplication.run(InterventionApplication.class, args);
+    }
+}
+
+
+@Component
+public class UserServiceClient {
+
+    private static final Logger logger = LoggerFactory.getLogger(UserServiceClient.class);
+
+    @Autowired
+    OAuth2RestTemplate restTemplate;
+
+    public User getUserByUserName(String userName){
+
+        logger.debug("Get user: {}", userName);
+
+        ResponseEntity<User> restExchange =
+                restTemplate.exchange(
+                        "http://zuulservice:5555/springhealth/user/users/{userName}",
+                        HttpMethod.GET,
+                        null, User.class, userName);
+
+        User user = restExchange.getBody();
+
+        return user;
+    }
+}
+
+使用postman访问http://localhost:8084/interventions/ccc/userName233/deviceCode2333
+添加 Token 
+报错"error": "access_denied",
+```

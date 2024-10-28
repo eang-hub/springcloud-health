@@ -21,6 +21,7 @@
     <module>user-service</module>
     <module>zuul-server</module>
     <module>device-service</module>
+    <module>auth-server</module>
   </modules>
 
 </project>
