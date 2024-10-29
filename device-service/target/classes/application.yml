@@ -1,6 +1,11 @@
 spring:
-  application:
-    name: deviceservice
+  cloud:
+    config:
+      enabled: true
+      uri: http://localhost:8888
+  zipkin:
+    baseUrl:  http://localhost:9411
+
 server:
   port: 8082
 

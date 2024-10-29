@@ -27,16 +27,11 @@ public class DeviceController {
     	
 	@RequestMapping(value = "/{deviceCode}", method = RequestMethod.GET)
     public Device getDevice(@PathVariable String deviceCode) {
-		try {
-			int a =1/0;
-			Thread.sleep(2000);  // 模拟2秒的延迟
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+
 		logger.info("Get device by code: {} from port: {}", deviceCode, request.getServerPort());
-		Device device = new Device();
-		device.setDeviceName("device"+ request.getServerPort());
-		//Device device = deviceService.getDeviceByCode(deviceCode);
+//		Device device = new Device();
+//		device.setDeviceName("device"+ request.getServerPort());
+		Device device = deviceService.getDeviceByCode(deviceCode);
     	return device;
     }
 }

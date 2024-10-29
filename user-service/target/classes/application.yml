@@ -1,5 +1,8 @@
 spring:
   cloud:
+    config:
+      enabled: true
+      uri: http://localhost:8888
     stream:
       bindings:
         output:
@@ -8,9 +11,12 @@ spring:
       kafka:
         binder:
           brokers: localhost
+  zipkin:
+    baseUrl: http://localhost:9411
 
 server:
   port: 8081
+
 
 eureka:
   client:

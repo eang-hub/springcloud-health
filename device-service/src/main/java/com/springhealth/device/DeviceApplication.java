@@ -11,11 +11,11 @@ import org.springframework.web.client.RestTemplate;
 @EnableResourceServer
 public class DeviceApplication {
    
-    @LoadBalanced
-    @Bean
-    public RestTemplate getRestTemplate(){
-        return new RestTemplate();
-    }
+//    @LoadBalanced
+//    @Bean
+//    public RestTemplate getRestTemplate(){
+//        return new RestTemplate();
+//    }
 
     public static void main(String[] args) {
         SpringApplication.run(DeviceApplication.class, args);
