@@ -20,19 +20,18 @@ public class UserServiceClient {
     @Autowired
     RestTemplate restTemplate;
 
-    public User getUserByUserName(String userName){
-    	
-    	logger.debug("Get user: {}", userName);
-      
-// 添加自定义请求头（例如，Authorization）
-    	ResponseEntity<User> restExchange =
+    public UserMapper getUserByUserName(String userName){
+
+        logger.debug("Get user: {}", userName);
+
+        ResponseEntity<UserMapper> restExchange =
                 restTemplate.exchange(
                         "http://zuulservice:5555/springhealth/user/users/username/{userName}",
                         HttpMethod.GET,
-                        null, User.class, userName);
+                        null, UserMapper.class, userName);
 
-        User user = restExchange.getBody();
-        
+        UserMapper user = restExchange.getBody();
+
         return user;
     }
 }

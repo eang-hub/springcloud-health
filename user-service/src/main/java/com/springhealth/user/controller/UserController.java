@@ -2,6 +2,8 @@ package com.springhealth.user.controller;
 
 import javax.servlet.http.HttpServletRequest;
 
+import com.springhealth.user.domain.UserList;
+import com.springhealth.user.repository.UserRepository;
 import com.springhealth.user.services.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +27,16 @@ public class UserController {
 
 	private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
+
+	@Autowired
+	private UserRepository repository;
+
+	@RequestMapping(path = "/userlist")
+	public UserList getUserList() {
+		UserList userList = new UserList();
+		userList.setData(repository.findAll());
+		return userList;
+	}
 	@RequestMapping(value = "/{userId}", method = RequestMethod.GET)
 	public User getUser(@PathVariable("userId") Long userId) {
 

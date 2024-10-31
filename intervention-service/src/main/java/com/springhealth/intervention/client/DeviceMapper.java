@@ -11,7 +11,18 @@ public class DeviceMapper implements Serializable {
 	private String deviceName;
 	private String description;
 	private Float healthData;
-	
+
+	public DeviceMapper() {
+
+	}
+	public DeviceMapper(Long id, String deviceCode, String deviceName, String description, Float healthData) {
+		super();
+		this.id = id;
+		this.deviceCode = deviceCode;
+		this.deviceName = deviceName;
+		this.description = description;
+		this.healthData = healthData;
+	}
 	public Long getId() {
 		return id;
 	}

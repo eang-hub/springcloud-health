@@ -31,7 +31,10 @@ import org.springframework.web.client.RestTemplate;
 @EnableOAuth2Client
 public class InterventionApplication {
 
-
+	@Bean
+	public RestTemplate getRestTemplate(){
+		return new RestTemplate();
+	}
 	@Primary
 	@Bean
 	@LoadBalanced

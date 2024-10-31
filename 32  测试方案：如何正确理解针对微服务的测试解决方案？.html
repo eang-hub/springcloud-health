@@ -1076,109 +1076,93 @@ body .markdown-body
 .highlight .vi{color:teal}
 .highlight .il{color:#009999}
 .highlight .gc{color:#999;background-color:#EAF2F5}
-</style><title>29  监控原理：如何理解服务监控和 Spring Cloud Sleuth 的基本原理？</title></head><body><article class="markdown-body"><p data-nodeid="31467" class="">从本课时开始，我们将讨论一个在微服务架构中非常重要的话题，即服务监控。今天我们将简要分析服务监控的基本原理，这是理解服务监控相关工具和框架的基础。同时，作为 Spring Cloud 中用于实现服务监控的专用工具，Spring Cloud Sleuth 为实现这些基本原理提供了完整而强大的解决方案。</p>
+</style><title>32  测试方案：如何正确理解针对微服务的测试解决方案？</title></head><body><article class="markdown-body"><p data-nodeid="2335">作为整个课程最后一部分内容，我们将讨论微服务架构中的测试解决方案。对于微服务而言，测试是一个难点，也是经常被忽略的一套技术体系。当系统中存在多个微服务时，除了常见的针对单个服务的单元测试和集成测试之外，面对不同服务之间进行交互和集成的场景，我们还需要引入端到端测试来确保服务定义和协议级别的正确性和稳定性。今天，我们就将基于这些测试需求给出针对微服务的测试方案。</p>
 
-<h3 data-nodeid="31468">服务监控基本原理</h3>
+<h3 data-nodeid="2031">微服务测试的系统方法</h3>
 
-<p data-nodeid="31469">在微服务架构中，我们基于业务划分服务并对外暴露服务访问接口。试想这样一个场景，如果我们发现某一个业务接口在访问过程中发生了错误，一般的处理过程就是快速定位到问题所发生的服务并进行解决。但在如下所示中大型系统中，一个业务接口背后可能会调用一批其他业务体系中的业务接口或基础设施类的底层接口，这时候我们如何能够做到快速定位问题呢？</p>
+<p data-nodeid="2032">测试工作包含很多类型，例如常见的单元测试、集成测试等，本课程无意对这些类型做过多的展开，而是直接抛出在测试微服务架构中需要面对的两个核心问题，即如何验证组件级别的正确性以及如何验证服务级别的正确性。</p>
 
-<p data-nodeid="31470"><img src="https://s0.lgstatic.com/i/image2/M01/03/BC/CgpVE1_hnXCAXNCHAABJ4_O33aw538.png" alt="Drawing 0.png" data-nodeid="31520"></p>
+<h4 data-nodeid="2033">如何验证组件级别的正确性？</h4>
 
-<div data-nodeid="31471"><p style="text-align:center">微服务调用链路示意图</p></div>
+<p data-nodeid="2034">验证组件级别正确性的一大难点在于关于组件与组件之间的依赖关系，这里就需要引出测试领域非常重要的一个概念，即 Mock（模拟）。针对测试组件涉及的外部依赖，我们的关注点在于这些组件之间的调用关系以及返回的结果或发生的异常等，而不在于组件内部的执行过程。因此常见的技巧就是使用 Mock 对象来替代真实的依赖对象，从而模拟真实的调用场景。</p>
 
-<p data-nodeid="31472">传统的做法是通过查阅服务器的日志来定位问题，但在中大型系统中，这种做法可操作性并不强，主要原因是我们很难找到包含错误日志的那台服务器。一方面，开发人员可能都不知道整个服务调用链路中具体有几个服务，也就无法找到是哪个服务发生了错误。就算找到了目标服务，在分布式集群的环境下，我们也不建议直接通过访问某台服务器来定位问题。服务监控的需求就应运而生。</p>
+<p data-nodeid="2035">例如，在一个通过 Spring Boot 构建的微服务中，Controller 层会访问 Service 层，而 Service 层又会访问 Repository 层，我们对 Controller 层的端点进行验证时，就需要模拟 Service 层组件的功能。同样，对 Service 层组件进行测试时，也需要假定 Repository 层组件的结果是可以获取的，如下所示：</p>
 
-<p data-nodeid="31473">分布式服务跟踪和监控的运行原理上实际上并不复杂，我们首先需要引入两个基本概念，即 SpanId 和 TraceId。</p>
+<p data-nodeid="2736" class=""><img src="https://s0.lgstatic.com/i/image2/M01/04/D8/CgpVE1_2vKeAN0EtAAFXaI3mLMI203.png" alt="Lark20210107-113745.png" data-nodeid="2740"></p>
 
-<h4 data-nodeid="31474">SpanId</h4>
+<div data-nodeid="2737"><p style="text-align:center">微服务中各层组件与 Mock 对象示意图</p></div>
 
-<p data-nodeid="31475">SpanId 一般被称为跨度 Id。在上图中，针对服务 A 的访问请求，通过 SpanId 来标识该请求的到达并返回的具体过程。显然，对于这个 Span 而言，势必需要明确 Span 的开始时间和结束时间，这两个时间之间的差值就是服务 A 对这个请求的处理时间。</p>
+<p data-nodeid="2038">对于微服务而言，组件级别的验证工作主要在于需要确保服务内部数据和复杂业务流程的正确性，这里的数据来源一般有关系型数据库、各种 Nosql 或垂直化搜索引擎等；而复杂业务流程则主要面向多个内部服务和数据访问组件之间的整合。</p>
 
-<h4 data-nodeid="31476">TraceId</h4>
+<h4 data-nodeid="2039">如何验证服务级别的正确性？</h4>
 
-<p data-nodeid="31477">除了 SpanId 外，我们还需要 TraceId，也就是跟踪 Id。同样是在上图中，要想监控整个链路，我们不光需要关注服务 A 中的 Span，而是需要把请求通过所有服务的 Span 都串联起来。这时候就需要为这个请求生成一个全局的唯一性 Id，通过这个 Id 可以串联起如上图所示，从服务 A 到服务 F 的整个调用，这个唯一性 Id 就是 TraceId。</p>
+<p data-nodeid="2040">服务与服务之间的验证工作一般指的是系统测试，涉及整体应用环境在现实场景中的系统测试也被称为是一种端到端（End-to-End）测试。取决于系统中测试的具体内容，端到端测试也存在很多种不同的类型。在微服务架构中，情况可能变得更加复杂。例如，在 SpringHealth 案例系统中，intervention-service 中健康干预信息的生成需要 user-service 和 device-service 之间完成复杂的接口交互，如下图所示：</p>
 
-<p data-nodeid="31478">同时，我们也应该关注于各个 Span 之间的顺序关系。显然，在上图中，服务 A 位于服务 B 的上游，所以访问服务 A 所生成的 SpanId 应该是访问服务 B 所生成的 SpanId 的父 SpanId，服务 B 和服务 C 的调用关系以此类推。这样，我们通过获取请求的唯一性 TraceId，并通过各个父 SpanId 与子 SpanId 之间的关联关系就可以构建出一条完整的服务调用链路。</p>
+<p data-nodeid="3542" class=""><img src="https://s0.lgstatic.com/i/image2/M01/04/D8/CgpVE1_2vLiAFKcVAAEv63_oGWE679.png" alt="Lark20210107-113749.png" data-nodeid="3546"></p>
 
-<p data-nodeid="31479">关于 Span，业界一般使用四种关键事件记录每个服务的客户端请求和服务器响应过程。我们可以基于这四种关键事件来剖析一个 Span 中的时间表示方式，如下所示：</p>
+<div data-nodeid="3543"><p style="text-align:center">SpringHealth 中的端到端测试内容</p></div>
 
-<p data-nodeid="31480"><img src="https://s0.lgstatic.com/i/image2/M01/03/BB/Cip5yF_hnYOASaQaAACYZEepUCw895.png" alt="Drawing 1.png" data-nodeid="31531"></p>
+<p data-nodeid="2043">在基于 Spring Cloud 的技术体系中，端到端测试的内容即为各个服务之间基于 RESTful 风格下的 HTTP 远程调用层。为了完成整个业务流程，端到端测试不得不考虑的问题是如何管理服务与服务之间的数据和状态传递。</p>
 
-<div data-nodeid="31481"><p style="text-align:center">Span 中的四种关键事件示意图</p></div>
+<p data-nodeid="2044">以上两个问题构成了我们后续两个课时的主体内容，在下一课时中，我们将介绍如何使用 Mock 和注解实施组件级别的测试。而在下一课时中，我们还会给出端到端测试的具体实施方案。其中，组件级别的测试相对比较成熟，而端到端测试则相对复杂，目前有一种测试策略为我们提供了解决方案，这就是面向契约的消费者驱动测试。而在 Spring Cloud 中同样提供了专门用于实现消费者驱动测试的 Spring Cloud Contract 组件。在本课时的剩余内容中，我们有必要对消费者驱动的契约测试的设计理念和系统方法先做相关的介绍。</p>
 
-<p data-nodeid="31482">在上图中，cs 表示 Client Send，也就是客户端向服务 A 发起了一个请求，代表了一个 Span 的开始。sr 代表 Server Receive，表示服务端接收客户端的请求并开始处理它。一旦请求到达了服务器端，服务器端对请求进行处理，并返回结果给客户端，这时候就会 ss 事件，也就是 Server Send。最后的 cr 表示 Client Receive，表示客户端接收到了服务器端返回的结果，代表着一个 Span 的完成。</p>
+<h3 data-nodeid="2045">消费者驱动的契约测试</h3>
 
-<p data-nodeid="31483">我们可以通过计算这四个关键时间之前的差值来获取 Span 中的时间信息。显然，sr-cs 值等于请求的网络延迟，ss-sr 值表示服务端处理请求的时间，而 cr-sr 值则代表客户端接收服务端数据的时间。</p>
+<p data-nodeid="2046">对于任何一个服务所暴露的对外接口，我们都可以把它们归为是一种契约（Contract），即接口的调用者希望通过接口获取某种约定的价值。消费者驱动的契约测试就是基于契约思想而诞生的一种端到端测试方法，该测试方法一经提出已经在微服务架构中得到很好的应用和推广。</p>
 
-<p data-nodeid="31484">通过这些关键事件我们就可以发现服务调用链路中存在的问题，目前主流的服务监控实现工具都对这些关键事件做了支持和封装。</p>
+<h4 data-nodeid="2047">什么是消费者驱动契约测试？</h4>
 
-<p data-nodeid="31485">通过前面所介绍的服务监控基本原理，我们明确了分布式环境下服务跟踪的载体，即 TraceId 和 SpanId。但要实现服务跟踪，我们还需要围绕这两个载体做进一步的分析和挖掘。首先，我们需要对整个调用过程的所有服务进行埋点并生成事件，并对这些事件数据进行采集。同时，由于事件数据量一般都很大，不仅要能实现存储，还需要能提供快速查询。然后，在此基础上，我们还需要对采集到的事件数据进行各种指标运算，并将运算结果保存起来，并提供各种排序、阈值设置和警告等功能。</p>
+<p data-nodeid="2048">在微服务中，当服务没有满足约定，就会对服务之间的交互产生影响。传统的接口测试虽然能够发现并解决部分因为违反接口约定所带来的错误，但这种测试方法本身也会存在一些问题。最典型的场景就在于随着服务的不断迭代，接口也会相应地产生变化，这种变化会导致集成测试结果的不稳定。如下图所示：</p>
 
-<p data-nodeid="31486">这些工作不是简单一个工具和框架能全部完成的，我们也不想自己从无到有实现这样一整套解决方案。幸好在 Spring Cloud 中存在一个组件能够帮忙我们简化实现，这个组件就是 Spring Cloud Sleuth。在 Spring Cloud Sleuth 中，也把这些事件称为注解（Annotation），请你注意名称上的不同叫法。</p>
+<p data-nodeid="3938" class=""><img src="https://s0.lgstatic.com/i/image2/M01/04/D6/Cip5yF_2vMOAEU6pAAGkTIaUvPs984.png" alt="Lark20210107-113752.png" data-nodeid="3942"></p>
 
-<h3 data-nodeid="31487">使用 Spring Cloud Sleuth 实现服务监控</h3>
+<div data-nodeid="3939"><p style="text-align:center">接口版本变化导致集成测试失败的场景</p></div>
 
-<p data-nodeid="31488">Spring Cloud Sleuth 是 Spring Cloud 的组成部分之一，对于分布式环境下的服务调用链路，我们可以通过该框架来完成服务监控和跟踪方面的各种需求。</p>
+<p data-nodeid="2051">上图还是以 SpringHealth 案例系统为例，intervention-service 依赖 user-service 和 device-service。在现有情况下，这三个服务都开发了第一个版本用于支持这种集成关系。根据业务需要，user-service 做了一次服务升级，从版本 1 升到了版本 2，我们就会发现集成测试在这个时候可能发生错误，这种错误就来自于接口的既有约定已被打破。</p>
 
-<p data-nodeid="31489">当我们将 Spring Cloud Sleuth 添加到系统的类路径，该框架便会自动建立日志收集渠道，不仅包括常见的使用 RestTemplate 发出的请求，同时也能无缝支持通过 API 网关 Zuul 以及 Spring Cloud Stream 所发送的请求。本课程前面的课时已经对这些组件做了详细的介绍。</p>
+<p data-nodeid="2052">讲到这里，大家可能已经明白了契约的基本概念，那么一个合理的契约应该包括哪些组成部分呢？显然，契约一方面应该定义其他微服务所期望的数据格式、支持的操作方法以及访问的协议。另一方面，也可以约定调用时延或吞吐量等非功能性约束和条件。</p>
 
-<p data-nodeid="31490">针对监控数据的管理，Spring Cloud Sleuth 可以设置常见的日志格式来输出 TraceId 和 SpanId。我们也可以利用诸如 Logstash 等日志发布组件将日志发布到 ELK 等日志分析工具中进行处理。同时，Spring Cloud Sleuth 也兼容了 Zipkin、HTrace 等第三方工具的应用和集成。在下一课时中，我们就将集成 Spring Cloud Sleuth 与 Zipkin 来提供可视化的链路跟踪系统。</p>
+<p data-nodeid="2053">对于服务的提供者和消费者而言，存在不同的契约表现形式。服务提供者契约包含了服务提供者所能提供的所有内容，所以一个服务提供者仅包含一种契约，而且这种契约一般会随着版本的演进而不断变化，正如上图中的 user-service 所示的效果一样。</p>
 
-<p data-nodeid="31491">接下来，就让我们引入 Spring Cloud Sleuth 框架。借助于 Spring Cloud Sleuth 中即插即用的服务调用链路构建过程，我们想要在某个微服务中添加服务监控功能，要做的事情只有一件，即把 spring-cloud-starter-sleuth 组件添加到 Maven 依赖中即可，如下所示。</p>
+<p data-nodeid="2054">而消费者契约则不同，一个服务可以存在一个或多个消费者契约。这种契约只包含某个或某些消费者真正在使用的一部分服务定义，并且根据服务消费者的变更而做相应的调整。服务提供者契约和消费者契约之间的这层关系如下图所示：</p>
 
-<pre class="lang-xml" data-nodeid="31492"><code data-language="xml"><span class="hljs-tag">&lt;<span class="hljs-name">dependency</span>&gt;</span>
-&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-tag">&lt;<span class="hljs-name">groupId</span>&gt;</span>org.springframework.cloud<span class="hljs-tag">&lt;/<span class="hljs-name">groupId</span>&gt;</span>
-&nbsp;&nbsp;&nbsp;&nbsp; <span class="hljs-tag">&lt;<span class="hljs-name">artifactId</span>&gt;</span>spring-cloud-starter-sleuth<span class="hljs-tag">&lt;/<span class="hljs-name">artifactId</span>&gt;</span>
-<span class="hljs-tag">&lt;/<span class="hljs-name">dependency</span>&gt;</span>
-</code></pre>
+<p data-nodeid="5488" class="te-preview-highlight"><img src="https://s0.lgstatic.com/i/image2/M01/04/D8/CgpVE1_2vQaAYHGzAAGPBri3jXw365.png" alt="Lark20210107-113755.png" data-nodeid="5492"></p>
 
-<p data-nodeid="31493">初始化工作完成之后，接下来就来看一下引入 Spring Cloud Sleuth 之后为我们带来的变化，首当其冲的切入点是控制台日志分析。在 SpringHealth 案例系统中，我们通过发起一次请求操作来观察 Spring Cloud Sleuth 的运行时效果。</p>
+<div data-nodeid="5489"><p style="text-align:center">服务提供者契约和消费者契约的区别</p></div>
 
-<p data-nodeid="31494">我们知道 intervention-service 分别调用了 user-service 和 device-service。如果我们调用<a href="http://localhost:5555/springhealth/intervention/interventions/springhealth_admin/device1" data-nodeid="31548">http://localhost:5555/springhealth/intervention/interventions/springhealth_admin/device1</a> 端点。那么，在 user-service 中，在控制台上可以看到如下日志信息：</p>
+<p data-nodeid="2057">基于上图，这里再引申出一个新的概念，即消费者驱动契约（Consumer Driven Contract，CDC），也就是说从消费者的角度出发驱动交互协议的制定和调整。</p>
 
-<pre class="lang-xml" data-nodeid="31495"><code data-language="xml">INFO [userservice,81d66b6e43e71faa,6df220755223fb6e,true] 18100 --- [nio-8082-exec-8] c.s.user.controller.UserController&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; : Get user by userName from 8082 port of userservice instance
-</code></pre>
+<p data-nodeid="2058">现在，关于契约相关的内容我们都介绍完毕了，下面回到对测试工作的讨论，来看一下所谓的消费者驱动的契约测试。消费者驱动的契约测试是针对微服务接口开展的测试，它能验证服务提供者所提供的契约是否满足消费者的期望。对于一个服务提供者而言，每个消费者会根据与其交互场景和上下文的不同产生不同的契约。当这个服务提供者频繁变更时，就应该保证每个消费者依然能够具备正确的消费契约。</p>
 
-<p data-nodeid="31496">我们关注于上述日志信息中的斜体部分内容，包括了四段内容，即服务名称、TraceId、SpanId 和 Zipkin 标志位，它是格式如下所示：</p>
+<p data-nodeid="2059">消费者驱动的契约测试能够提供一定机制验证提供者所提供的服务能否始终满足契约。因为每个消费者拥有自身的消费者契约，所以我们只需要根据消费者契约编写独立的测试用例，并验证这些契约下服务提供者所暴露出来的那一部分接口即可。这些测试用例仅仅关注契约是否满足期望，而不需要深入测试服务内部的行为，所以测试方式相较集成测试而言具有轻量级的优点，可以在很大程度上降低测试成本。</p>
 
-<pre class="lang-xml" data-nodeid="31497"><code data-language="xml">[服务名称, TraceId, SpanId, Zipkin 标志位]
-</code></pre>
+<p data-nodeid="2060">在服务交互过程中，消费者驱动的契约测试能够帮助服务消费者和提供者验证接口是否已经发生变化。每当服务提供者所暴露的接口发生变更，契约测试就能检测该接口是否仍然和契约所要求的保持一致，如下所示：</p>
 
-<p data-nodeid="31498">显然，第一段中的 userservice 代表着该服务的名称，使用的就是在 bootstrap.yml 中 spring.application.name 指定的服务名称。考虑到服务跟踪的需求，为服务指定一个统一而友好的名称是一项最佳实践。</p>
+<p data-nodeid="5295" class=""><img src="https://s0.lgstatic.com/i/image2/M01/04/D8/CgpVE1_2vP2AOS_yAAFlcVWb57o596.png" alt="Lark20210107-113757.png" data-nodeid="5299"></p>
 
-<p data-nodeid="31499">第二段中的 TraceId 代表一次完整请求的唯一编号，上例中的 81d66b6e43e71faa 就是该次请求的唯一编号。在诸如 Zipkin 等可视化工具中，可以通过 TraceId 查看完整的服务调用链路。</p>
+<div data-nodeid="5296"><p style="text-align:center">服务升级导致契约测试失败示意图</p></div>
 
-<p data-nodeid="31500">在一个完整的服务调用链路中，每一个服务之间的调用过程都可以通过 SpanId 进行唯一标识，例如上例中位于第三段的 6df220755223fb6e。所以 TraceId 和 SpanId 是一对多的关系，即一个 TraceId 一般都会包含多个 SpanId，每一个 SpanId 都从属于特定的 TraceId。当然，也可以通过 SpanId 查看某一个服务调用过程的详细信息。</p>
+<p data-nodeid="2063">在上图中，对于同一份消费者契约而言，一旦 user-service 所提供的接口从版本 1 上升到版本 2 时，如果新版本升级导致了契约不再满足，那么契约测试就能立即做出验证，从而在开展功能测试之前就能尽早发现错误。</p>
 
-<p data-nodeid="31501">最后的第四段代表 Zipkin 标志位，该标志位用于识别是否将服务跟踪信息同步到 Zipkin， Zipkin 是一个可视化工具，可以将服务跟踪信息通过一定的图形化形式展示出来。因为在请求运行过程中，我们已经启动了 Zipkin 服务器，所以上例中的标志位值为 true，意味着所有跟踪信息将被同步到 Zipkin 中。关于 Zipkin 的详细介绍请参考下一课时的内容。</p>
+<h3 data-nodeid="2064">如何开展消费者驱动契约测试？</h3>
 
-<p data-nodeid="31502">如果你执行过前面课时中的代码，你会发现以上四段内容的日志显示效果为 [userservice,,,]，也就说默认请求下 TraceId、SpanId 和 Zipkin 标志位都为空，这些内容都是在引入 Spring Cloud Sleuth 之后被自动添加到了每一次服务调用中。</p>
+<p data-nodeid="2065">通过前面内容的介绍，我们实际上明确了消费者驱动契约测试是一个比较复杂的过程，所以不推荐对所有的服务交互过程都实施这种测试方法。在本课程中，我们梳理了如下所示的消费者驱动契约测试实施过程：</p>
 
-<p data-nodeid="31503">同样，我们再来看一下 device-service 和 intervention-service 中的日志信息。device-service 中的控制台输出日志如下，同样可以看到用斜体表示的完整四段内容，其中 TraceId 为81d66b6e43e71faa，SpanId 为 e1dffdb86c81cc3c，Zipkin 标志位为 true：</p>
+<p data-nodeid="5102" class=""><img src="https://s0.lgstatic.com/i/image2/M01/04/D6/Cip5yF_2vO6ACiX4AAIhOWL-BOU931.png" alt="Lark20210107-113800.png" data-nodeid="5106"></p>
 
-<pre class="lang-xml" data-nodeid="31504"><code data-language="xml">INFO [deviceservice,81d66b6e43e71faa,e1dffdb86c81cc3c,true] 18656 --- [nio-8081-exec-2] c.s.device.controller.DeviceController&nbsp;&nbsp; : Get device by code: device1 from port: 8081
-</code></pre>
+<div data-nodeid="5103"><p style="text-align:center">消费者驱动契约测试实施步骤</p></div>
 
-<p data-nodeid="31505">同样，在 intervention-service 中的日志信息中，我们也发现了类似的一条记录，其中 TraceId 为 81d66b6e43e71faa，SpanId 为 992aec60c399ece2，Zipkin 标志位也为 true：</p>
+<p data-nodeid="2068">正如前面提到的，并不是所有的业务场景都需要使用消费者驱动契约测试，往往越容易发生变更的业务场景就越需要进行测试，所以上图中的第一个步骤是根据业务需求选择合适的测试场景。一旦明确了场景之后，基于消费者驱动的设计思想，就可以将消费者请求契约化。消费者发送的请求、提供者返回的响应都需要明确记录，并整理成该场景下的契约。然后，测试用例将模型消费者，向真实的服务提供者发送请求。最后，通过获取请求结果，验证提供者的契约是否已经发生变化。</p>
 
-<pre class="lang-xml" data-nodeid="31506"><code data-language="xml">INFO [interventionservice,81d66b6e43e71faa,992aec60c399ece2,true] 28648 --- [nio-8081-exec-2] c.s.intervention.controller.InterventionController&nbsp;&nbsp; : Generate intervention for userName: springhealth_admin and deviceCode: device1.
-</code></pre>
+<p data-nodeid="2069">为了实施上述步骤，我们需要选择消费者驱动契约测试工具。作为一个完整的微服务套件，Spring Cloud 也提供了 Spring Cloud Contract 作为消费者驱动契约测试的开发框架。在本课程中，我们将以 Spring Cloud Contract 为例对消费者驱动契约测试工具的使用方式做详细介绍。</p>
 
-<p data-nodeid="31507">请注意，以上三段日志中的 TraceId 都是 81d66b6e43e71faa，也就是它们属于同一个服务调用链路，而不同的 SpanId 代表着整个链路中的具体某一个服务调用。我们从日志中的时间上也不难看出三者之间的调用时序。基于这三个服务以及 TraceId、SpanId 所生成的服务调用时序链路效果如下所示：</p>
+<h3 data-nodeid="2070">小结与预告</h3>
 
-<p data-nodeid="31997" class="te-preview-highlight"><img src="https://s0.lgstatic.com/i/image2/M01/04/33/Cip5yF_q9YKAXrG5AAGe1ZklSJw015.png" alt="Lark20201229-172231.png" data-nodeid="32001"></p>
+<p data-nodeid="2071">测试是一套独立的技术体系，需要开发人员充分重视并付诸实践，这点对于微服务架构而言更是如此。在本课程中，我们无意对测试工作面面俱到，而是重点关注于如何确保单个服务的正确性以及如何确保多个服务之间交互的正确性，因此分别提出了组件级别和服务级别的测试方法。在微服务架构中，对于后者而言，还需要引入专门的消费者驱动契约测试体系。</p>
 
-<div data-nodeid="31998"><p style="text-align:center">三个服务调用链路效果图</p></div>
+<p data-nodeid="2072">这里给你留一道思考题：消费者驱动的契约测试解决的核心问题是什么？</p>
 
-<p data-nodeid="31510">关于该链路的可视化效果和更详细的数据信息我们在下一课时中还会有具体展开。</p>
-
-<h3 data-nodeid="31511">小结与预告</h3>
-
-<p data-nodeid="31512">构建服务监控和链路跟踪在微服务系统开发过程中是一项基础设施类工作，而我们可以借助于 Spring Cloud Sleuth 来轻松完成这项工作。Spring Cloud Sleuth 内置了日志采集和分析机制，能够帮忙我们自动化建立 TraceId 和 SpanId 之间的关联关系。本课时对如何在业务开发过程中引入 Spring Cloud Sleuth 做了全面介绍。</p>
-
-<p data-nodeid="31513">这里给你留一道思考题：你能描述服务监控过程中的 TraceId、SpanId、四大关键事件的概念和作用吗？</p>
-
-<p data-nodeid="31514" class="">Spring Cloud Sleuth 是一个集成化的框架，可以与其他第三方组件进行无缝集成从而提供更加强大的链路跟踪功能。在下一课时中，我们就将通过集成 Zipkin 来实现可视化的链路跟踪效果。</p>
+<p data-nodeid="2073">在介绍完设计理念之后，下一课时我们将先来讨论第一种测试体系，即验证组件级别正确性的测试方法和工程实践。</p>
 
 <hr />
 <h3 id="_1">精选评论<a class="headerlink" href="#_1" title="Permanent link"></a></h3></article></body></html>

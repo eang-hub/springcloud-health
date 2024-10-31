@@ -27,12 +27,6 @@ spring:
           filters:
             - RewritePath=/springhealth/user/(?<remaining>.*), /${remaining}  # 转发时去除前缀 /springhealth/user
 
-        - id: interventionroute
-          uri: lb://interventionservice
-          predicates:
-            - Path=/springhealth/intervention/**
-          filters:
-            - RewritePath=/springhealth/intervention/(?<path>.*), /${path}
   zipkin:
     enabled: false
 

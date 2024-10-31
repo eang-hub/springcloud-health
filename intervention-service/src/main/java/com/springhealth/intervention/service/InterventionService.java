@@ -53,7 +53,7 @@ public class InterventionService {
 		logger.debug("Get remote device: {} is successful", deviceCode);
 
 		//获取远程User信息
-		User user = getUser(userName);
+		UserMapper user = getUser(userName);
 		if (user == null) {
 			return intervention;
 		}
@@ -75,7 +75,7 @@ public class InterventionService {
 
 
 
-	private User getUser(String userName) {
+	private UserMapper getUser(String userName) {
 		return userClient.getUserByUserName(userName);
 	}
 

@@ -8,11 +8,11 @@ public class UserMapper implements Serializable {
 	private Long id;
     private String userCode;    
     private String userName;
-    
-    public UserMapper(Long id, String userCode, String userName) {
-    	this.id = id;
-    	this.userCode = userCode;
-    	this.userName = userName;
+
+	public UserMapper(Long id, String userCode, String userName) {
+		this.id = id;
+		this.userCode = userCode;
+		this.userName = userName;
 	}
     
 	public Long getId() {

@@ -6,6 +6,7 @@ import javax.servlet.http.HttpServletRequest;
 
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import com.netflix.hystrix.contrib.javanica.annotation.HystrixProperty;
+import com.springhealth.intervention.client.UserMapper;
 import com.springhealth.intervention.domain.User;
 import com.springhealth.intervention.service.UserService;
 import org.slf4j.Logger;
@@ -43,13 +44,13 @@ public class InterventionController {
 
 
 	@RequestMapping(value = "ccc/{userName}/{deviceCode}")
-	public User getUserByUserName(@PathVariable("userName") String userName,
-									 @PathVariable("deviceCode") String deviceCode) {
+	public UserMapper getUserByUserName(@PathVariable("userName") String userName,
+										@PathVariable("deviceCode") String deviceCode) {
 
 		logger.info("Generate intervention for userName: {} and deviceCode: {}.", userName, deviceCode);
 
 		// 使用编程式开发
-		User user = userService.getUserByUserName(userName);
+		UserMapper user = userService.getUserByUserName(userName);
 
 		return user;
 	}

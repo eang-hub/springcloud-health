@@ -1,5 +1,6 @@
 package com.springhealth.intervention.service;
 
+import com.springhealth.intervention.client.UserMapper;
 import com.springhealth.intervention.client.UserServiceClient;
 import com.springhealth.intervention.domain.User;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +22,7 @@ public class UserService {
     }
 
 
-    public User getUserByUserName(String userName) {
+    public UserMapper getUserByUserName(String userName) {
         return userClient.getUserByUserName(userName);
     }
 }
