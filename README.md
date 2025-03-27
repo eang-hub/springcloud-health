@@ -11,6 +11,8 @@
 
 ### **LookupService 接口**
 
+http://eureka1:8761/eureka/apps/eureka-server2
+
 - **功能**：管理应用程序与服务实例的关系。
 - **方法**：
 
@@ -29,9 +31,12 @@
   - **不同 Action 的处理**：调用 `PeerEurekaNode` 的不同方法。
     - **StatusUpdate Action**：触发 `PeerEurekaNode` 的 `statusUpdate` 方法。
     - **通信机制**：使用 `replicationClient.statusUpdate` 完成节点间的通信。
+
       - `replicationClient` 是 `HttpReplicationClient` 接口的实例。
       - `HttpReplicationClient` 继承自 `EurekaHttpClient` 接口。
       - `EurekaHttpClient` 的实现类为 `JerseyReplicationClient`。
+
+      ![image.png](assets/image.png)
 
 ---
 
@@ -70,17 +75,6 @@
   - 原始的 `EurekaHttpClient` 通过 `TransportClientFactory` 创建。
   - **实现类**：`JerseyEurekaHttpClientFactory` 返回不同的客户端实现，如 `JerseyEurekaHttpClient`。
     - **Jersey 客户端**：通过 `EurekaJerseyClient` 获取，后者使用 `ApacheHttpClient4` 对象完成 REST 调用。
-
-
-
-
-
-
-
-
-
-
-
 
 ## 要分别启动使用不同配置文件的 `eureka-server`，可以通过以下方式实现：
 
